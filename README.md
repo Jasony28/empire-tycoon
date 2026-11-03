@@ -4,14 +4,17 @@ Jeu de gestion mobile (PWA) : bâtis ton empire avec **6 entreprises reliées en
 
 | Entreprise | Ce que tu fais |
 |---|---|
-| 🚜 Ferme | Plante blé, carottes, patates, tomates, maïs, fraises. Élève poules 🐔 et vaches 🐄 (il faut les nourrir). |
+| 🚜 Ferme | 11 cultures (blé → café), choisies champ par champ. 5 animaux à nourrir : poules, vaches, cochons, moutons, ruches. |
 | 🛒 Supérette | Mets tes produits en rayon, choisis ta marge, les clients achètent tout seuls. |
-| 🏭 Usine agro | Transforme : farine, frites, sauce, pâtes, pain, fromage, confiture, gâteau. |
-| 🍽️ Restaurant | Sers pizzas, spaghetti, croques… avant que la patience des clients tombe à zéro. |
+| 🏭 Usine agro | 15 recettes : farine, frites, pâtes, fromage, vin, pulls en laine, chocolat, café… |
+| 🍽️ Restaurant | 17 plats, du cornet de frites au menu dégustation. Sers avant que la patience tombe à zéro. |
 | 🚚 Logistique | Contrats de livraison en gros vers des villes, très rentables. |
-| 🏢 Immobilier | Achète studios → gratte-ciel, encaisse des loyers chaque matin. |
+| 🏢 Immobilier | 9 biens du studio à l'île privée, des loyers chaque matin. |
 
-**Aussi :** marché aux prix qui bougent chaque jour, événements aléatoires (sécheresse, festival, grève…), employés qui automatisent, missions infinies, 19 succès, diamants 💎 et boosts, cadeau quotidien, progression hors-ligne (3 h max), prestige 🌟 avec bonus permanent, sauvegarde automatique + export.
+**Profondeur :** chaque entreprise monte jusqu'au **niveau 25** et a **3 employés** à débloquer (18 au total). 30 succès, missions infinies, marché qui bouge, événements, prestige 🌟 avec bonus permanent. Un joueur rapide met environ 30 h à faire son premier prestige.
+
+
+**Aussi :** diamants 💎 et boosts, cadeau quotidien, progression hors-ligne (3 h max), sauvegarde automatique + fichier de sauvegarde, mises à jour automatiques.
 
 ---
 

@@ -342,3 +342,4 @@ body:has(#modal.show) #toasts { bottom: auto; top: calc(80px + var(--safe-top));
 .mix { font-size: 15px; letter-spacing: .5px; margin: -2px 2px 8px; color: var(--dim); }
 .plot.grow > span { font-size: 26px; }
 .plot.empty small { color: #ffffff80; font-weight: 600; }
+.emp.lock { opacity: .5; }

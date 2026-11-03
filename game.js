@@ -28,7 +28,7 @@ function fmtT(s) {
 
 // ---------- État ----------
 const SAVE_KEY = "empire-tycoon-save";
-const VERSION = "v1.6";
+const VERSION = "v2.0";
 let G;
 let OFF = false;          // simulation hors-ligne en cours
 let dirty = true;
@@ -43,13 +43,13 @@ function newState(keep) {
     stats: { planted: 0, harvest: 0, animal: 0, craft: 0, sold: 0, served: 0, contracts: 0, earned: 0, missed: 0 },
     market: {}, events: [], boostUntil: 0, rushUntil: 0,
     biz: {
-      ferme: { own: true, lvl: 1, emp: false, plots: [], sel: "ble",
-        animals: { poule: { n: 0, acc: 0, st: 0, hungry: false }, vache: { n: 0, acc: 0, st: 0, hungry: false } } },
-      superette: { own: false, lvl: 1, emp: false, shelves: [], acc: 0, rep: 60, log: [] },
-      usine: { own: false, lvl: 1, emp: false, machines: [] },
-      resto: { own: false, lvl: 1, emp: false, orders: [], acc: 0, rates: [], chefAcc: 0, nid: 1 },
-      transport: { own: false, lvl: 1, emp: false, trucks: [], contracts: [] },
-      immo: { own: false, lvl: 1, emp: false, props: {}, idx: 1, hist: [1] },
+      ferme: { own: true, lvl: 1, emps: {}, plots: [], sel: "ble",
+        animals: {} },
+      superette: { own: false, lvl: 1, emps: {}, shelves: [], acc: 0, rep: 60, log: [] },
+      usine: { own: false, lvl: 1, emps: {}, machines: [] },
+      resto: { own: false, lvl: 1, emps: {}, orders: [], acc: 0, rates: [], chefAcc: 0, nid: 1 },
+      transport: { own: false, lvl: 1, emps: {}, trucks: [], contracts: [] },
+      immo: { own: false, lvl: 1, emps: {}, props: {}, idx: 1, hist: [1] },
     },
     quests: [], ach: {}, daily: { last: "", streak: 0 },
     settings: { sound: true, vibe: true }, welcomed: false,
@@ -97,19 +97,19 @@ const saveCode = () => btoa(unescape(encodeURIComponent(JSON.stringify(G))));
 
 // ---------- Paramètres dérivés ----------
 const L = b => G.biz[b].lvl;
-const plotCount = (l = L("ferme")) => Math.min(20, 4 + 2 * (l - 1));
-const growSpeed = (l = L("ferme")) => (1 + 0.07 * (l - 1)) * mod("grow");
-const animalCap = (l = L("ferme")) => 2 + 2 * (l - 1);
-const shelfCount = (l = L("superette")) => Math.min(12, 3 + (l - 1));
-const shelfCap = (l = L("superette")) => 20 + 10 * l;
-const machineCount = (l = L("usine")) => 1 + Math.floor((l - 1) / 2);
-const craftSpeed = (l = L("usine")) => 1 + 0.1 * (l - 1);
-const tableCount = (l = L("resto")) => 1 + Math.ceil(l / 2);
-const truckCount = (l = L("transport")) => 1 + Math.floor((l - 1) / 3);
-const truckCap = (l = L("transport")) => 25 + 15 * l;
-const truckSpeed = () => (1 + 0.08 * (L("transport") - 1)) * (G.biz.transport.emp ? 1.4 : 1) * mod("truck");
-const upCost = b => Math.round(BIZ[b].up * Math.pow(2.1, L(b) - 1));
-const xpNeed = l => Math.floor(60 * Math.pow(l, 1.8));
+const plotCount = (l = L("ferme")) => Math.min(36, 4 + Math.floor((l - 1) * 1.5));
+const growSpeed = (l = L("ferme")) => (1 + 0.06 * (l - 1)) * mod("grow");
+const animalCap = (l = L("ferme")) => 2 + (l - 1);
+const shelfCount = (l = L("superette")) => Math.min(18, 3 + Math.floor((l - 1) * 0.75));
+const shelfCap = (l = L("superette")) => 20 + 8 * l;
+const machineCount = (l = L("usine")) => Math.min(10, 1 + Math.floor((l - 1) / 2));
+const craftSpeed = (l = L("usine")) => (1 + 0.06 * (l - 1)) * (E("usine", "ingenieur") ? 1.35 : 1);
+const tableCount = (l = L("resto")) => Math.min(8, 1 + Math.ceil(l / 3));
+const truckCount = (l = L("transport")) => Math.min(7, 1 + Math.floor((l - 1) / 4));
+const truckCap = (l = L("transport")) => 25 + 10 * l;
+const truckSpeed = () => (1 + 0.05 * (L("transport") - 1)) * (E("transport", "chauffeur") ? 1.4 : 1) * mod("truck");
+const upCost = b => Math.round(BIZ[b].up * Math.pow(UP_GROWTH, L(b) - 1));
+const xpNeed = l => Math.floor(70 * Math.pow(l, 2.15));
 const animalCost = k => Math.round(ANIMALS[k].cost * Math.pow(1.18, G.biz.ferme.animals[k].n));
 
 function mod(k) {
@@ -122,9 +122,19 @@ function ref(id) {
   for (const e of G.events) if (e.id === "penurie" && e.item === id) m *= 2;
   return ITEMS[id].p * m;
 }
+const PRESTIGE_MIN = 25e6;
+const prestigeGain = () => Math.floor(Math.sqrt(G.runEarned / 5e6));
 const mult = () => (1 + 0.1 * G.stars) * (G.t < G.boostUntil ? 2 : 1);
 
 function sync() {
+  for (const b of BIZ_ORDER) {
+    const o = G.biz[b];
+    if (!o.emps) o.emps = {};
+    if (o.emp === true) o.emps[EMPS[b][0].id] = true;   // anciennes sauvegardes : 1 employé
+    delete o.emp;
+    if (o.lvl > MAX_LVL) o.lvl = MAX_LVL;
+  }
+  for (const k in ANIMALS) if (!G.biz.ferme.animals[k]) G.biz.ferme.animals[k] = { n: 0, acc: 0, st: 0, hungry: false };
   const f = G.biz.ferme;
   while (f.plots.length < plotCount()) f.plots.push({ c: null, start: 0, end: 0, ready: false });
   const s = G.biz.superette;
@@ -137,6 +147,19 @@ function sync() {
   for (const id in ITEMS) if (!G.market[id]) G.market[id] = { m: 1, h: [1] };
   for (const id in PROPS) if (G.biz.immo.props[id] == null) G.biz.immo.props[id] = 0;
   while (G.quests.length < 3) G.quests.push(genQuest());
+}
+
+// ---------- Employés ----------
+const E = (b, id) => !!(G.biz[b].emps && G.biz[b].emps[id]);
+const empDef = (b, id) => EMPS[b].find(e => e.id === id);
+const empCount = b => Object.values(G.biz[b].emps || {}).filter(Boolean).length;
+function hireEmp(b, id, silent) {
+  const e = empDef(b, id), o = G.biz[b];
+  if (!e || E(b, id) || o.lvl < e.lvl) return false;
+  if (silent) { if (G.money < e.wage * 40) return false; G.money -= e.wage * 40; }
+  else if (!spend(e.wage * 40)) return false;
+  o.emps[id] = true;
+  return true;
 }
 
 // ---------- Économie ----------
@@ -172,7 +195,7 @@ function netWorth() {
   let w = G.money;
   for (const id in G.inv) w += have(id) * ref(id) * 0.7;
   for (const p in PROPS) w += (G.biz.immo.props[p] || 0) * PROPS[p].price * G.biz.immo.idx;
-  for (const b of BIZ_ORDER) if (G.biz[b].own) w += BIZ[b].cost + BIZ[b].up * (Math.pow(2.1, G.biz[b].lvl - 1) - 1) / 1.1 * 0.5;
+  for (const b of BIZ_ORDER) if (G.biz[b].own) w += BIZ[b].cost + BIZ[b].up * (Math.pow(UP_GROWTH, G.biz[b].lvl - 1) - 1) / (UP_GROWTH - 1) * 0.5;
   return w;
 }
 
@@ -208,10 +231,11 @@ function harvest(i, auto) {
   const f = G.biz.ferme, p = f.plots[i];
   if (!p.c || !p.ready) return 0;
   const c = p.c, cr = CROPS[c];
-  add(c, cr.yield); G.stats.harvest += cr.yield; addXP(cr.xp);
+  const y = cr.yield + (E("ferme", "agro") ? 1 : 0);
+  add(c, y); G.stats.harvest += y; addXP(cr.xp);
   p.c = null; p.ready = false; p.last = c;
   if (f.replant !== false || auto) plant(i, c, true);
-  return cr.yield;
+  return y;
 }
 function collectAnimal(k) {
   const a = G.biz.ferme.animals[k], d = ANIMALS[k];
@@ -223,15 +247,15 @@ function tickFarm(dt) {
   const f = G.biz.ferme;
   f.plots.forEach((p, i) => {
     if (p.c && !p.ready && G.t >= p.end) { p.ready = true; dirty = true; }
-    if (f.emp && p.ready) harvest(i, true);
-    if (f.emp && !p.c && !(p.hold > G.t)) plant(i, p.last || f.sel, true);
+    if (E("ferme", "fermier") && p.ready) harvest(i, true);
+    if (E("ferme", "fermier") && !p.c && !(p.hold > G.t)) plant(i, p.last || f.sel, true);
   });
   for (const k in ANIMALS) {
     const a = f.animals[k], d = ANIMALS[k];
     if (!a.n) continue;
     const cap = a.n * 8;
     if (a.st >= cap) { a.acc = Math.min(a.acc + dt, d.period); continue; }
-    a.acc += dt;
+    a.acc += dt * (E("ferme", "veto") ? 1.4 : 1);
     if (a.acc >= d.period) {
       a.acc -= d.period;
       let made = 0;
@@ -241,18 +265,19 @@ function tickFarm(dt) {
       if (a.hungry && !was && !OFF) toast(`${d.e} Tes ${d.n.toLowerCase()}s ont faim : il faut du ${ITEMS[d.feed].e} ${ITEMS[d.feed].n.toLowerCase()} !`, "bad");
       dirty = true;
     }
-    if (f.emp && a.st > 0) collectAnimal(k);
+    if (E("ferme", "veto") && a.st > 0) collectAnimal(k);
   }
 }
 
 // ---------- Supérette ----------
 const MKS = [-0.1, 0.1, 0.25, 0.45, 0.7];
 const MK_LBL = { "-0.1": "-10%", "0.1": "+10%", "0.25": "+25%", "0.45": "+45%", "0.7": "+70%" };
-const shelfPrice = sh => ref(sh.item) * (1 + sh.mk);
-const buyChance = (mk, rep) => clamp(0.97 - mk * 1.5 + (rep - 50) / 250, 0.04, 0.98);
+const shopBrand = (l = L("superette")) => 1 + 0.03 * (l - 1);
+const shelfPrice = sh => ref(sh.item) * (1 + sh.mk) * shopBrand();
+const buyChance = (mk, rep) => clamp(0.97 - mk * 1.5 + (rep - 50) / 250 + (G && E("superette", "market") ? 0.15 : 0), 0.04, 0.98);
 function shopInterval() {
   const s = G.biz.superette;
-  return 7 / ((1 + 0.12 * (s.lvl - 1)) * (s.emp ? 1.3 : 1) * mod("shop") * (G.t < G.rushUntil ? 4 : 1) * (0.6 + s.rep / 100 * 0.8));
+  return 7 / ((1 + 0.08 * (s.lvl - 1)) * (E("superette", "caissier") ? 1.3 : 1) * mod("shop") * (G.t < G.rushUntil ? 4 : 1) * (0.6 + s.rep / 100 * 0.8));
 }
 function restock(sh) {
   if (!sh.item) return 0;
@@ -271,9 +296,9 @@ function customer() {
     sh.qty -= q;
     const got = gain(price * q);
     G.stats.sold += q; addXP(q);
-    s.rep = Math.min(100, s.rep + (sh.mk <= 0.1 ? 0.6 : sh.mk <= 0.25 ? 0.25 : 0.05));
+    s.rep = Math.min(100, s.rep + (sh.mk <= 0.1 ? 0.6 : sh.mk <= 0.25 ? 0.25 : 0.05) * (E("superette", "market") ? 2 : 1));
     s.log.unshift(`🧍 ${q}× ${ITEMS[sh.item].e} <b>+${money(got)}</b>`);
-    if (sh.qty <= 0 && !s.emp) { sh.qty = 0; if (!OFF) toast(`🛒 Rayon ${ITEMS[sh.item].e} vide !`); }
+    if (sh.qty <= 0 && !E("superette", "magasin")) { sh.qty = 0; if (!OFF) toast(`🛒 Rayon ${ITEMS[sh.item].e} vide !`); }
   } else {
     s.rep = Math.max(0, s.rep - 0.5);
     s.log.unshift(`😤 ${ITEMS[sh.item].e} trop cher, le client repart`);
@@ -284,7 +309,7 @@ function customer() {
 function tickShop(dt) {
   const s = G.biz.superette;
   if (!s.own) return;
-  if (s.emp) s.shelves.forEach(restock);
+  if (E("superette", "magasin")) s.shelves.forEach(restock);
   s.acc += dt;
   const iv = shopInterval();
   while (s.acc >= iv) { s.acc -= iv; customer(); }
@@ -303,7 +328,8 @@ function collectMachine(i) {
   const m = G.biz.usine.machines[i];
   if (!m.r || !m.ready) return null;
   const r = m.r;
-  add(r, 1); G.stats.craft++; addXP(RECIPES[r].xp);
+  const n = E("usine", "chefequipe") && Math.random() < 0.25 ? 2 : 1;
+  add(r, n); G.stats.craft += n; addXP(RECIPES[r].xp);
   m.r = null; m.ready = false;
   startRecipe(i, r, true);
   return r;
@@ -320,8 +346,8 @@ function tickUsine() {
   if (!u.own) return;
   u.machines.forEach((m, i) => {
     if (m.r && !m.ready && G.t >= m.end) { m.ready = true; dirty = true; }
-    if (u.emp && m.ready) collectMachine(i);
-    if (u.emp && !m.r && m.last && !(m.hold > G.t)) startRecipe(i, m.last, true);
+    if (E("usine", "ouvrier") && m.ready) collectMachine(i);
+    if (E("usine", "ouvrier") && !m.r && m.last && !(m.hold > G.t)) startRecipe(i, m.last, true);
   });
 }
 
@@ -331,6 +357,7 @@ function rating() {
   const r = G.biz.resto.rates;
   return r.length ? r.reduce((a, b) => a + b, 0) / r.length : 3.5;
 }
+const dishPrice = d => DISHES[d].price * (1 + 0.04 * (G.biz.resto.lvl - 1)) * mod("restoPrice") * (E("resto", "sommelier") ? 1.25 : 1);
 function rate(n) { const r = G.biz.resto.rates; r.push(n); if (r.length > 20) r.shift(); }
 function serve(id, auto) {
   const r = G.biz.resto, o = r.orders.find(x => x.id === id);
@@ -340,8 +367,8 @@ function serve(id, auto) {
   consume(d.in);
   const left = (o.end - G.t) / (o.end - o.start);
   rate(left > 0.6 ? 5 : left > 0.3 ? 4 : 3);
-  const price = d.price * (1 + 0.06 * (r.lvl - 1)) * mod("restoPrice") * (0.75 + rating() * 0.07);
-  const tip = left > 0.6 ? price * 0.2 : 0;
+  const price = dishPrice(o.d) * (0.75 + rating() * 0.07);
+  const tip = left > 0.6 ? price * 0.2 * (E("resto", "serveur") ? 1.5 : 1) : 0;
   const got = gain(price + tip, { float: !auto });
   G.stats.served++; addXP(d.xp);
   r.orders = r.orders.filter(x => x !== o);
@@ -352,17 +379,17 @@ function tickResto(dt) {
   const r = G.biz.resto;
   if (!r.own) return;
   // Sans chef, le restaurant n'est ouvert que quand tu es en salle : les clients attendent sinon.
-  const open = r.emp || (scr === "biz:resto" && !document.hidden);
+  const open = E("resto", "chef") || (scr === "biz:resto" && !document.hidden);
   if (!open) { for (const o of r.orders) { o.start += dt; o.end += dt; } return; }
   if (!OFF) {
     r.acc += dt;
-    const iv = (r.orders.length ? Math.max(5, 14 - r.lvl) : 3) / mod("resto");
+    const iv = (r.orders.length ? Math.max(5, 14 - r.lvl / 2) : 3) / mod("resto");
     if (r.acc >= iv) {
       r.acc = 0;
       if (r.orders.length < tableCount()) {
         const all = unlockedDishes(), can = all.filter(x => canMake(DISHES[x].in));
         const d = can.length && Math.random() < 0.75 ? pick(can) : pick(all);
-        const pat = (38 + Object.keys(DISHES[d].in).length * 6) * (1 + 0.08 * (r.lvl - 1));
+        const pat = (38 + Object.keys(DISHES[d].in).length * 6) * (1 + 0.04 * (r.lvl - 1)) * (E("resto", "serveur") ? 1.5 : 1);
         r.orders.push({ id: r.nid++, d, start: G.t, end: G.t + pat });
         dirty = true;
         if (scr === "biz:resto") SFX.ding();
@@ -376,7 +403,7 @@ function tickResto(dt) {
       if (!OFF) toast(`😠 Un client est parti sans manger (${DISHES[o.d].e})`, "bad");
     }
   }
-  if (r.emp) {
+  if (E("resto", "chef")) {
     r.chefAcc += dt;
     if (r.chefAcc >= 3) {
       r.chefAcc = 0;
@@ -403,13 +430,24 @@ function genContract() {
     const q = Math.max(3, Math.round(truckCap() / lines * rnd(0.3, 0.7) * clamp(10 / ITEMS[it].p, 0.2, 1)));
     items[it] = q; value += q * ITEMS[it].p;
   }
-  const reward = Math.round(value * rnd(1.6, 2.2));
+  const reward = Math.round(value * rnd(1.6, 2.2) * (1 + 0.04 * (L("transport") - 1)) * (E("transport", "nego") ? 1.25 : 1));
   return { id: Math.random().toString(36).slice(2, 9), city: pick(CITIES), items, reward,
     xp: Math.round(20 + reward / 25), dur: Math.round(rnd(45, 130)), exp: G.day + 3 };
+}
+function acceptContract(c, silent) {
+  const t = G.biz.transport, tr = t.trucks.find(x => !x.busy);
+  if (!c || !tr || !canMake(c.items)) return false;
+  consume(c.items);
+  Object.assign(tr, { busy: true, c, start: G.t, end: G.t + c.dur / truckSpeed() });
+  t.contracts = t.contracts.filter(x => x !== c);
+  t.contracts.push(genContract());
+  if (!silent && !OFF) { toast(`🚚 Camion en route vers ${c.city} !`); vib(30); }
+  return true;
 }
 function tickTransport() {
   const t = G.biz.transport;
   if (!t.own) return;
+  if (E("transport", "dispatch")) for (const c of t.contracts.slice()) if (canMake(c.items)) acceptContract(c, true);
   for (const tr of t.trucks) {
     if (tr.busy && G.t >= tr.end) {
       const c = tr.c;
@@ -427,14 +465,15 @@ function rentPerDay() {
   if (!im.own) return 0;
   let r = 0;
   for (const p in PROPS) r += (im.props[p] || 0) * PROPS[p].rent;
-  return r * (0.7 + 0.3 * im.idx) * (1 + 0.05 * (im.lvl - 1)) * (im.emp ? 1.25 : 1) * mod("rent");
+  return r * (0.7 + 0.3 * im.idx) * (1 + 0.05 * (im.lvl - 1)) * (E("immo", "gestion") ? 1.25 : 1) * (E("immo", "concierge") ? 1.3 : 1) * mod("rent");
 }
-const propPrice = p => PROPS[p].price * G.biz.immo.idx;
+const propPrice = p => PROPS[p].price * G.biz.immo.idx * (E("immo", "agent") ? 0.9 : 1);
+const propSell = p => PROPS[p].price * G.biz.immo.idx * (E("immo", "agent") ? 1 : 0.9);
 
 // ---------- Journée ----------
 function wages() {
   let w = 0;
-  for (const b of BIZ_ORDER) if (G.biz[b].own && G.biz[b].emp) w += EMP[b].wage;
+  for (const b of BIZ_ORDER) if (G.biz[b].own) for (const e of EMPS[b]) if (E(b, e.id)) w += e.wage;
   return w;
 }
 function startEvent() {
@@ -472,8 +511,9 @@ function newDay() {
   let gotRent = rent > 0 ? gain(rent) : 0;
   let w = wages(), fired = [];
   while (w > 0 && G.money < w) {
-    const b = BIZ_ORDER.filter(x => G.biz[x].emp).sort((a, c) => EMP[c].wage - EMP[a].wage)[0];
-    G.biz[b].emp = false; fired.push(EMP[b].n); w = wages();
+    const all = []; for (const b of BIZ_ORDER) for (const e of EMPS[b]) if (E(b, e.id)) all.push([b, e]);
+    all.sort((x, y) => y[1].wage - x[1].wage);
+    const [b, e] = all[0]; G.biz[b].emps[e.id] = false; fired.push(e.n); w = wages();
   }
   G.money -= w;
   const t = G.biz.transport;
@@ -509,7 +549,7 @@ function genQuest() {
     return true;
   });
   const k = keys.length ? pick(keys) : pick(["harvest", "planted", "earned"]);
-  return { k, n: QT[k].n(G.lvl), base: G.stats[k], money: Math.round(100 * Math.pow(1.42, G.lvl)),
+  return { k, n: QT[k].n(G.lvl), base: G.stats[k], money: Math.round(60 * Math.pow(1.28, G.lvl)),
     xp: 25 + G.lvl * 12, gems: Math.random() < 0.4 ? 2 : 1 };
 }
 const qProg = q => clamp(G.stats[q.k] - q.base, 0, q.n);
@@ -660,12 +700,16 @@ function bizHead(b) {
     ${up}</div>`;
 }
 function empCard(b) {
-  const o = G.biz[b], e = EMP[b];
-  return `<div class="sec">Personnel</div><div class="card emp">
-    <div class="emo">${e.e}</div>
-    <div class="grow"><b>${e.n}</b> ${o.emp ? '<span class="tag good">En poste</span>' : ""}<small>${e.desc}</small>
-    <small class="dim">${o.emp ? "Salaire" : `Prime d'embauche ${money(e.wage * 3)}, puis`} ${money(e.wage)} / jour</small></div>
-    <button class="btn sm ${o.emp ? "ghost" : "gold"}" data-a="emp" data-b="${b}">${o.emp ? "Renvoyer" : "Embaucher"}</button></div>`;
+  const o = G.biz[b];
+  let h = `<div class="sec">Personnel <small>· ${empCount(b)}/3 · salaires payés chaque matin</small></div>`;
+  for (const e of EMPS[b]) {
+    const on = E(b, e.id), lock = o.lvl < e.lvl;
+    h += `<div class="card emp ${lock ? "lock" : ""}"><div class="emo">${e.e}</div>
+      <div class="grow"><b>${e.n}</b> ${on ? '<span class="tag good">En poste</span>' : ""}<small>${e.desc}</small>
+      <small class="dim">${lock ? `🔒 ${BIZ[b].n} niveau ${e.lvl}` : on ? `Salaire ${money(e.wage)} / jour` : `Embauche ${money(e.wage * 40)} · puis ${money(e.wage)} / jour`}</small></div>
+      ${lock ? "" : `<button class="btn sm ${on ? "ghost" : "gold"}" data-a="emp" data-b="${b}" data-e="${e.id}">${on ? "Renvoyer" : "Embaucher"}</button>`}</div>`;
+  }
+  return h;
 }
 
 function vHome() {
@@ -683,7 +727,7 @@ function vHome() {
   else if (next) {
     const d = BIZ[next];
     h += `<div class="goal">🎯 Prochain objectif : ouvrir <b>${d.e} ${d.n}</b> ${G.lvl < d.lvl ? `(niveau ${d.lvl} requis)` : `pour ${money(d.cost)}`}</div>`;
-  } else if (G.runEarned >= 1e6) h += `<button class="goal" data-a="nav" data-s="more">🌟 Tu peux faire un <b>prestige</b> pour devenir encore plus riche !</button>`;
+  } else if (G.runEarned >= PRESTIGE_MIN) h += `<button class="goal" data-a="nav" data-s="more">🌟 Tu peux faire un <b>prestige</b> pour devenir encore plus riche !</button>`;
 
   h += `<div class="sec">Tes entreprises</div><div class="bgrid">`;
   for (const b of BIZ_ORDER) {
@@ -692,7 +736,7 @@ function vHome() {
       const st = bizStatus(b);
       h += `<button class="bcard" style="--c:${d.col}" data-a="open" data-b="${b}">
         ${st.alert ? '<i class="dot"></i>' : ""}
-        <span class="bemo">${d.e}</span><b>${d.n}</b><small>Niv. ${o.lvl}${o.emp ? " · " + EMP[b].e : ""}</small><em>${st.txt}</em></button>`;
+        <span class="bemo">${d.e}</span><b>${d.n}</b><small>Niv. ${o.lvl}${empCount(b) ? " · " + EMPS[b].filter(e => E(b, e.id)).map(e => e.e).join("") : ""}</small><em>${st.txt}</em></button>`;
     } else if (G.lvl >= d.lvl) {
       h += `<button class="bcard buy" style="--c:${d.col}" data-a="buybiz" data-b="${b}">
         <span class="bemo">${d.e}</span><b>${d.n}</b><small>${d.desc}</small><em class="price ${G.money >= d.cost ? "ok" : ""}">Ouvrir · ${money(d.cost)}</em></button>`;
@@ -709,7 +753,7 @@ function bizStatus(b) {
       const r = o.plots.filter(p => p.ready).length, g = o.plots.filter(p => p.c && !p.ready).length;
       const an = Object.values(o.animals).reduce((s, a) => s + a.st, 0);
       const empty = o.plots.length - r - g;
-      return { alert: (r || an || empty) && !o.emp, txt: r ? `🧺 ${r} prête(s)` : an ? `🥚 ${an} à ramasser` : empty ? `🌱 ${empty} parcelle(s) libre(s)` : `🌱 ${g} en culture` };
+      return { alert: (r || an || empty) && !E("ferme", "fermier"), txt: r ? `🧺 ${r} prête(s)` : an ? `🥚 ${an} à ramasser` : empty ? `🌱 ${empty} parcelle(s) libre(s)` : `🌱 ${g} en culture` };
     }
     case "superette": {
       const em = o.shelves.filter(s => !s.item || s.qty <= 0).length;
@@ -717,9 +761,9 @@ function bizStatus(b) {
     }
     case "usine": {
       const r = o.machines.filter(m => m.ready).length, idle = o.machines.filter(m => !m.r).length;
-      return { alert: (r || idle) && !o.emp, txt: r ? `✅ ${r} prête(s)` : idle ? `⚙️ ${idle} machine(s) à l'arrêt` : `⚙️ En production` };
+      return { alert: (r || idle) && !E("usine", "ouvrier"), txt: r ? `✅ ${r} prête(s)` : idle ? `⚙️ ${idle} machine(s) à l'arrêt` : `⚙️ En production` };
     }
-    case "resto": return { alert: o.orders.length > 0 && !o.emp, txt: o.orders.length ? `🔔 ${o.orders.length} client(s)` : `★ ${rating().toFixed(1)}` };
+    case "resto": return { alert: o.orders.length > 0 && !E("resto", "chef"), txt: o.orders.length ? `🔔 ${o.orders.length} client(s)` : `★ ${rating().toFixed(1)}` };
     case "transport": {
       const free = o.trucks.filter(t => !t.busy).length;
       return { alert: free > 0, txt: free ? `🚚 ${free} camion(s) dispo` : `🛣️ Tous en route` };
@@ -855,11 +899,11 @@ function vResto() {
   const rt = rating();
   h += `<div class="card rstats"><div class="stars">${"★".repeat(Math.round(rt))}<span>${"★".repeat(5 - Math.round(rt))}</span></div>
     <small>Note ${rt.toFixed(1)}/5 · les clients satisfaits paient plus cher</small></div>
-    ${r.emp ? "" : `<p class="tip">🕒 Sans chef cuisinier, la salle n'est ouverte que quand tu es là : les clients patientent pendant ton absence.</p>`}`;
+    ${E("resto", "chef") ? "" : `<p class="tip">🕒 Sans chef cuisinier, la salle n'est ouverte que quand tu es là : les clients patientent pendant ton absence.</p>`}`;
   h += `<div class="sec">Salle (${tableCount()} tables)</div><div class="tables">`;
   for (const o of r.orders) {
     const d = DISHES[o.d], ok = canMake(d.in);
-    h += `<div class="card order"><div class="otop"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>${fmtP(d.price * (1 + 0.06 * (r.lvl - 1)) * mod("restoPrice"))}</small></div></div>
+    h += `<div class="card order"><div class="otop"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>${fmtP(dishPrice(o.d))}</small></div></div>
       <div class="ings">${ingr(d.in)}</div>${pbar(o.start, o.end, true, "pat")}
       <button class="btn ${ok ? "gold" : ""} full" data-a="serve" data-o="${o.id}" ${ok ? "" : "disabled"}>${ok ? "🍽️ Servir" : "Ingrédients manquants"}</button></div>`;
   }
@@ -906,7 +950,7 @@ function vImmo() {
     h += `<div class="card prop"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}${n ? ` <span class="tag">×${n}</span>` : ""}</b>
       <small>Prix ${money(propPrice(p))} · loyer ~${money(d.rent)}/j</small></div>
       <div class="acol"><button class="btn sm gold" data-a="buyprop" data-p="${p}">Acheter</button>
-      ${n ? `<button class="btn sm ghost" data-a="sellprop" data-p="${p}">Vendre ${money(propPrice(p) * 0.9)}</button>` : ""}</div></div>`;
+      ${n ? `<button class="btn sm ghost" data-a="sellprop" data-p="${p}">Vendre ${money(propSell(p))}</button>` : ""}</div></div>`;
   }
   return h + "</div>" + empCard("immo");
 }
@@ -972,7 +1016,7 @@ function vShop() {
 
 function vMore() {
   const s = G.stats;
-  const gainStars = Math.floor(Math.sqrt(G.runEarned / 250000));
+  const gainStars = prestigeGain();
   let h = `<h2 class="ptitle">⚙️ Plus</h2>`;
   h += `<div class="card savecard"><div class="shtop"><span class="emo">💾</span><div class="grow"><b>Sauvegarde</b>
     <small>${lastSaveOk ? "✅ Automatique toutes les 5 s · dernière " + saveAgo() : "⚠️ Ce navigateur bloque la sauvegarde automatique : garde un fichier ou un code !"}</small></div></div>
@@ -981,9 +1025,9 @@ function vMore() {
   h += `<div class="card prestige"><div class="center big">🌟</div><b>Prestige</b>
     <small>Revends tout ton empire pour gagner des <b>étoiles d'investisseur</b>. Chaque étoile = <b>+10 % de gains pour toujours</b>. Tu gardes tes diamants et tes succès.</small>
     <small>Étoiles actuelles : <b>${G.stars}</b> (+${G.stars * 10}% de gains)</small>
-    ${G.runEarned >= 1e6
+    ${G.runEarned >= PRESTIGE_MIN
       ? `<button class="btn gold full" data-a="prestige">Revendre l'empire (+${gainStars} 🌟)</button>`
-      : `${sbar(G.runEarned / 1e6)}<small class="dim">Gagne ${money(1e6)} dans cette partie pour débloquer (${money(G.runEarned)})</small>`}</div>`;
+      : `${sbar(G.runEarned / PRESTIGE_MIN)}<small class="dim">Gagne ${money(PRESTIGE_MIN)} dans cette partie pour débloquer (${money(G.runEarned)})</small>`}</div>`;
   h += `<div class="sec">📊 Statistiques</div><div class="card statsg">
     <div><small>Jour</small><b>${G.day}</b></div><div><small>Gains totaux</small><b>${money(s.earned)}</b></div>
     <div><small>Récoltes</small><b>${fmt(s.harvest)}</b></div><div><small>Produits animaux</small><b>${fmt(s.animal)}</b></div>
@@ -1030,13 +1074,14 @@ const A = {
   upg: d => {
     const b = d.b, o = G.biz[b], n = o.lvl + 1;
     const lines = {
-      ferme: [`Parcelles : ${plotCount(o.lvl)} → <b>${plotCount(n)}</b>`, `Vitesse de pousse : +${7 * (n - 1)}%`, `Animaux max : ${animalCap(o.lvl)} → <b>${animalCap(n)}</b>`],
-      superette: [`Rayons : ${shelfCount(o.lvl)} → <b>${shelfCount(n)}</b>`, `Taille des rayons : ${shelfCap(o.lvl)} → <b>${shelfCap(n)}</b>`, `Affluence : +${12 * (n - 1)}%`],
-      usine: [`Chaînes : ${machineCount(o.lvl)} → <b>${machineCount(n)}</b>`, `Vitesse : ×${craftSpeed(o.lvl).toFixed(1)} → <b>×${craftSpeed(n).toFixed(1)}</b>`],
-      resto: [`Tables : ${tableCount(o.lvl)} → <b>${tableCount(n)}</b>`, `Prix des plats : +${6 * (n - 1)}%`, `Patience des clients : +${8 * (n - 1)}%`, `Clients plus fréquents`],
-      transport: [`Camions : ${truckCount(o.lvl)} → <b>${truckCount(n)}</b>`, `Capacité : ${truckCap(o.lvl)} → <b>${truckCap(n)}</b>`, `Vitesse : +${8 * (n - 1)}%`],
+      ferme: [`Parcelles : ${plotCount(o.lvl)} → <b>${plotCount(n)}</b>`, `Vitesse de pousse : +${6 * (n - 1)}%`, `Animaux max : ${animalCap(o.lvl)} → <b>${animalCap(n)}</b>`],
+      superette: [`Rayons : ${shelfCount(o.lvl)} → <b>${shelfCount(n)}</b>`, `Taille des rayons : ${shelfCap(o.lvl)} → <b>${shelfCap(n)}</b>`, `Affluence : +${8 * (n - 1)}%`, `Prix de vente : +${3 * (n - 1)}%`],
+      usine: [`Chaînes : ${machineCount(o.lvl)} → <b>${machineCount(n)}</b>`, `Vitesse : ×${craftSpeed(o.lvl).toFixed(2)} → <b>×${craftSpeed(n).toFixed(2)}</b>`],
+      resto: [`Tables : ${tableCount(o.lvl)} → <b>${tableCount(n)}</b>`, `Prix des plats : +${4 * (n - 1)}%`, `Patience des clients : +${4 * (n - 1)}%`, `Clients plus fréquents`],
+      transport: [`Camions : ${truckCount(o.lvl)} → <b>${truckCount(n)}</b>`, `Capacité : ${truckCap(o.lvl)} → <b>${truckCap(n)}</b>`, `Vitesse : +${5 * (n - 1)}%`, `Contrats mieux payés : +${4 * (n - 1)}%`],
       immo: [`Loyers : +${5 * (n - 1)}%`],
     }[b];
+    for (const e of EMPS[b]) if (e.lvl === n) lines.push(`${e.e} Nouvel employé : <b>${e.n}</b>`);
     openModal(`⬆️ ${BIZ[b].n} niveau ${n}`, () => `<ul class="ul">${lines.map(x => `<li>${x}</li>`).join("")}</ul>
       <button class="btn gold full" data-a="upgok" data-b="${b}" ${G.money >= upCost(b) ? "" : "disabled"}>Améliorer pour ${money(upCost(b))}</button>`);
   },
@@ -1048,11 +1093,12 @@ const A = {
     toast(`⬆️ ${BIZ[d.b].n} passe au niveau ${o.lvl} !`, "good");
   },
   emp: d => {
-    const o = G.biz[d.b], e = EMP[d.b];
-    if (o.emp) { o.emp = false; toast(`${e.e} ${e.n} renvoyé.`); return; }
-    if (!spend(e.wage * 3)) return;
-    o.emp = true; SFX.coin(); toast(`${e.e} ${e.n} embauché !`, "good");
+    const b = d.b, e = empDef(b, d.e);
+    if (!e) return;
+    if (E(b, e.id)) { G.biz[b].emps[e.id] = false; toast(`${e.e} ${e.n} renvoyé.`); return; }
+    if (hireEmp(b, e.id)) { SFX.coin(); toast(`${e.e} ${e.n} embauché !`, "good"); }
   },
+
   sel: d => {
     if (CROPS[d.c].lvl > G.lvl) { toast(`🔒 Débloqué au niveau ${CROPS[d.c].lvl}`); return; }
     G.biz.ferme.sel = d.c;
@@ -1119,7 +1165,7 @@ const A = {
   unshelf: d => { const sh = G.biz.superette.shelves[+d.i]; if (sh.item) add(sh.item, sh.qty); sh.item = null; sh.qty = 0; },
   mk: d => { G.biz.superette.shelves[+d.i].mk = parseFloat(d.m); },
   grossiste: () => openModal("🏬 Grossiste", () => {
-    const ids = Object.keys(ITEMS).filter(id => producible().includes(id) || (ANIMALS.poule.lvl <= G.lvl && id === "oeuf") || (ANIMALS.vache.lvl <= G.lvl && id === "lait"));
+    const ids = Object.keys(ITEMS).filter(id => producible().includes(id) || Object.values(ANIMALS).some(a => a.out === id && a.lvl <= G.lvl));
     return `<p class="tip">Le grossiste vend 15 % au-dessus du cours. Pratique pour démarrer, mais produire toi-même rapporte bien plus !</p>
       <div class="list">${ids.map(id => { const p = ref(id) * 1.15; return `<div class="li"><span class="emo">${ITEMS[id].e}</span><div class="grow"><b>${ITEMS[id].n}</b><small>${fmtP(p)} / u · stock ${have(id)}</small></div>
       <button class="btn sm" data-a="gbuy" data-id="${id}" data-q="10">×10<small>${money(p * 10)}</small></button>
@@ -1152,20 +1198,13 @@ const A = {
     floatTxt("⚡", "gem");
   },
   serve: d => { if (serve(+d.o)) { SFX.coin(); vib(25); } },
-  accept: d => {
-    const t = G.biz.transport, c = t.contracts.find(x => x.id === d.c), tr = t.trucks.find(x => !x.busy);
-    if (!c || !tr || !canMake(c.items)) return;
-    consume(c.items);
-    Object.assign(tr, { busy: true, c, start: G.t, end: G.t + c.dur / truckSpeed() });
-    t.contracts = t.contracts.filter(x => x !== c);
-    t.contracts.push(genContract());
-    toast(`🚚 Camion en route vers ${c.city} !`); vib(30);
-  },
+  accept: d => { acceptContract(G.biz.transport.contracts.find(x => x.id === d.c)); },
+
   refreshc: () => { if (!spendGems(2)) return; G.biz.transport.contracts = []; sync(); toast("🔄 Nouveaux contrats !"); },
   buyprop: d => { if (!spend(Math.round(propPrice(d.p)))) return; G.biz.immo.props[d.p]++; SFX.coin(); toast(`${PROPS[d.p].e} ${PROPS[d.p].n} acheté !`, "good"); },
   sellprop: d => {
     const im = G.biz.immo; if (!im.props[d.p]) return;
-    im.props[d.p]--; gain(propPrice(d.p) * 0.9, { raw: true, float: true }); SFX.coin();
+    im.props[d.p]--; gain(propSell(d.p), { raw: true, float: true }); SFX.coin();
   },
   sell: d => {
     const q = d.q === "all" ? have(d.id) : Math.min(+d.q, have(d.id));
@@ -1203,11 +1242,11 @@ const A = {
     if (d.k === "cash") gain(cashPack(), { raw: true, float: true });
     SFX.level(); toast(`${b.e} ${b.n} activé !`, "good");
   },
-  prestige: () => openModal("🌟 Revendre l'empire ?", () => `<p>Tu vas repartir de zéro avec <b>+${Math.floor(Math.sqrt(G.runEarned / 250000))} étoile(s)</b>.</p>
+  prestige: () => openModal("🌟 Revendre l'empire ?", () => `<p>Tu vas repartir de zéro avec <b>+${prestigeGain()} étoile(s)</b>.</p>
       <p>Tu gardes : 💎 diamants, 🏆 succès, 🌟 étoiles, statistiques.</p>
       <button class="btn gold full" data-a="prestigeok">Confirmer le prestige</button><button class="btn ghost full" data-a="close">Annuler</button>`),
   prestigeok: () => {
-    const gainS = Math.floor(Math.sqrt(G.runEarned / 250000));
+    const gainS = prestigeGain();
     const keep = G; G = newState(keep); G.stars += gainS; G.prestiges++;
     sync(); closeModal(); scr = "home"; SFX.level();
     toast(`🌟 Nouveau départ avec ${G.stars} étoile(s) : +${G.stars * 10}% de gains !`, "good");
