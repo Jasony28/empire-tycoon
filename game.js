@@ -64,23 +64,35 @@ function newState(keep) {
 function load() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) {
-      const d = JSON.parse(raw);
-      const base = newState();
-      // fusion prudente avec l'état par défaut (compatibilité futures versions)
-      G = Object.assign(base, d);
-      for (const b of BIZ_ORDER) G.biz[b] = Object.assign(base.biz[b], d.biz && d.biz[b]);
-      G.stats = Object.assign(newState().stats, d.stats);
-      return true;
-    }
+    if (raw) { applySave(JSON.parse(raw)); return true; }
   } catch (e) { console.warn(e); }
   G = newState();
   return false;
 }
+// Fusion prudente d'une sauvegarde avec l'état par défaut (compatibilité futures versions)
+function applySave(d) {
+  if (!d || typeof d !== "object" || !d.biz || typeof d.money !== "number") throw new Error("bad save");
+  const base = newState();
+  G = Object.assign(base, d);
+  for (const b of BIZ_ORDER) G.biz[b] = Object.assign(newState().biz[b], d.biz[b]);
+  G.stats = Object.assign(newState().stats, d.stats);
+}
+let lastSaveOk = 0;
 function save() {
   G.ts = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); lastSaveOk = Date.now(); return true; } catch (e) { return false; }
 }
+function saveAgo() {
+  if (!lastSaveOk) return "pas encore";
+  const s = Math.round((Date.now() - lastSaveOk) / 1000);
+  return s < 3 ? "à l'instant" : "il y a " + fmtT(s);
+}
+function importData(d) {
+  applySave(d); sync(); save();
+  closeModal(); scr = "home"; dirty = true;
+  toast(`✅ Partie chargée : niveau ${G.lvl}, ${money(G.money)}`, "good"); SFX.level();
+}
+const saveCode = () => btoa(unescape(encodeURIComponent(JSON.stringify(G))));
 
 // ---------- Paramètres dérivés ----------
 const L = b => G.biz[b].lvl;
@@ -926,6 +938,10 @@ function vMore() {
   const s = G.stats;
   const gainStars = Math.floor(Math.sqrt(G.runEarned / 250000));
   let h = `<h2 class="ptitle">⚙️ Plus</h2>`;
+  h += `<div class="card savecard"><div class="shtop"><span class="emo">💾</span><div class="grow"><b>Sauvegarde</b>
+    <small>${lastSaveOk ? "✅ Automatique toutes les 5 s · dernière " + saveAgo() : "⚠️ Ce navigateur bloque la sauvegarde automatique : garde un fichier ou un code !"}</small></div></div>
+    <div class="row"><button class="btn sm gold" data-a="savenow">💾 Sauvegarder</button><button class="btn sm" data-a="savefile">📥 Fichier</button><button class="btn sm" data-a="loadfile">📂 Charger</button></div>
+    <small class="dim">« Fichier » enregistre ta partie sur ton téléphone. Pratique pour changer d'appareil ou si tu vides ton navigateur.</small></div>`;
   h += `<div class="card prestige"><div class="center big">🌟</div><b>Prestige</b>
     <small>Revends tout ton empire pour gagner des <b>étoiles d'investisseur</b>. Chaque étoile = <b>+10 % de gains pour toujours</b>. Tu gardes tes diamants et tes succès.</small>
     <small>Étoiles actuelles : <b>${G.stars}</b> (+${G.stars * 10}% de gains)</small>
@@ -942,9 +958,9 @@ function vMore() {
     <button class="li btnli" data-a="set" data-k="vibe"><span class="emo">📳</span><div class="grow"><b>Vibrations</b></div><span class="tag">${G.settings.vibe ? "Oui" : "Non"}</span></button>
     ${deferredInstall ? `<button class="li btnli" data-a="install"><span class="emo">📲</span><div class="grow"><b>Installer le jeu</b><small>Ajouter sur l'écran d'accueil</small></div></button>` : ""}
     <button class="li btnli" data-a="help"><span class="emo">❓</span><div class="grow"><b>Comment jouer</b></div></button>
-    <button class="li btnli" data-a="export"><span class="emo">💾</span><div class="grow"><b>Exporter / importer la sauvegarde</b><small>Pour changer de téléphone</small></div></button>
+    <button class="li btnli" data-a="export"><span class="emo">💾</span><div class="grow"><b>Code de sauvegarde</b><small>Copier / coller ta partie sous forme de texte</small></div></button>
     <button class="li btnli danger" data-a="reset"><span class="emo">🗑️</span><div class="grow"><b>Recommencer à zéro</b></div></button></div>
-    <p class="center dim small">Empire Tycoon · v1.1</p>`;
+    <p class="center dim small">Empire Tycoon · v1.2</p>`;
   return h;
 }
 
@@ -1131,20 +1147,54 @@ const A = {
   set: d => { G.settings[d.k] = !G.settings[d.k]; },
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; dirty = true; },
   help: () => openModal("❓ Comment jouer", () => HELP),
-  export: () => openModal("💾 Sauvegarde", () => {
+  savenow: () => { if (save()) { toast("💾 Partie sauvegardée !", "good"); SFX.coin(); } else toast("⚠️ Sauvegarde impossible ici : utilise « Fichier »", "bad"); },
+  savefile: () => {
     save();
-    const code = btoa(unescape(encodeURIComponent(JSON.stringify(G))));
+    const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const blob = new Blob([JSON.stringify(G)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `empire-tycoon-${stamp}-niv${G.lvl}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast("📥 Fichier de sauvegarde créé (dossier Téléchargements)", "good");
+  },
+  loadfile: () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".json,application/json,text/plain";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        try {
+          const txt = String(rd.result).trim();
+          const d = txt.startsWith("{") ? JSON.parse(txt) : JSON.parse(decodeURIComponent(escape(atob(txt))));
+          openModal("📂 Charger cette partie ?", () => `<p class="center">Niveau <b>${d.lvl}</b> · <b>${money(d.money)}</b> · jour ${d.day}</p>
+            <p class="center dim">Ta partie actuelle (niveau ${G.lvl}) sera remplacée.</p>
+            <button class="btn gold full" data-a="loadok">Charger</button><button class="btn ghost full" data-a="close">Annuler</button>`);
+          pendingLoad = d;
+        } catch (e) { toast("❌ Ce fichier n'est pas une sauvegarde Empire Tycoon", "bad"); SFX.err(); }
+      };
+      rd.readAsText(f);
+    };
+    inp.click();
+  },
+  loadok: () => { try { importData(pendingLoad); } catch (e) { toast("❌ Sauvegarde invalide", "bad"); } pendingLoad = null; },
+  export: () => openModal("💾 Code de sauvegarde", () => {
+    save();
+    const code = saveCode();
     return `<p class="small">Copie ce code et garde-le. Sur un autre appareil, colle-le puis touche « Importer ».</p>
       <textarea id="saveCode" rows="5">${code}</textarea>
       <div class="row"><button class="btn" data-a="copysave">📋 Copier</button><button class="btn gold" data-a="importsave">📥 Importer</button></div>`;
   }),
-  copysave: () => { const t = $("#saveCode"); t.select(); navigator.clipboard?.writeText(t.value); toast("📋 Code copié !"); },
+  copysave: () => {
+    const t = $("#saveCode"); t.select();
+    try { navigator.clipboard.writeText(t.value).then(() => toast("📋 Code copié !"), () => toast("Code sélectionné : copie-le avec un appui long")); }
+    catch (e) { toast("Code sélectionné : copie-le avec un appui long"); }
+  },
   importsave: () => {
     try {
-      const d = JSON.parse(decodeURIComponent(escape(atob($("#saveCode").value.trim()))));
-      if (!d.biz) throw 0;
-      localStorage.setItem(SAVE_KEY, JSON.stringify(d)); load(); sync(); closeModal(); scr = "home";
-      toast("✅ Sauvegarde importée !", "good");
+      const txt = $("#saveCode").value.trim();
+      importData(txt.startsWith("{") ? JSON.parse(txt) : JSON.parse(decodeURIComponent(escape(atob(txt)))));
     } catch (e) { toast("❌ Code invalide", "bad"); }
   },
   reset: () => openModal("🗑️ Tout recommencer ?", () => `<p>Ta partie sera <b>définitivement</b> effacée (y compris diamants et étoiles).</p>
@@ -1200,7 +1250,7 @@ function updTimers() {
 }
 
 // ---------- Démarrage ----------
-let deferredInstall = null;
+let deferredInstall = null, pendingLoad = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; dirty = true; });
 
 document.addEventListener("pointerdown", e => { lastXY = [e.clientX, e.clientY]; pressing = true; }, true);
@@ -1234,7 +1284,7 @@ function frame() {
   secAcc += dt;
   if (secAcc >= 1) {
     secAcc = 0; checkAch();
-    if (scr === "home" || scr === "quests" || scr === "biz:immo") dirty = true;
+    if (scr === "home" || scr === "quests" || scr === "more" || scr === "biz:immo") dirty = true;
   }
   if (dirty) render();
   if (now - lastSave > 5000) { lastSave = now; save(); }

@@ -337,3 +337,4 @@ textarea { width: 100%; background: #00000040; color: var(--txt); border: 1px so
   .bgrid { grid-template-columns: repeat(3, 1fr); }
 }
 body:has(#modal.show) #toasts { bottom: auto; top: calc(80px + var(--safe-top)); flex-direction: column; }
+.savecard { border-color: #4ade8055; } .savecard .row { flex-wrap: wrap; }
