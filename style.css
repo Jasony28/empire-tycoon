@@ -338,3 +338,7 @@ textarea { width: 100%; background: #00000040; color: var(--txt); border: 1px so
 }
 body:has(#modal.show) #toasts { bottom: auto; top: calc(80px + var(--safe-top)); flex-direction: column; }
 .savecard { border-color: #4ade8055; } .savecard .row { flex-wrap: wrap; }
+
+.mix { font-size: 15px; letter-spacing: .5px; margin: -2px 2px 8px; color: var(--dim); }
+.plot.grow span { font-size: 26px; }
+.plot.empty small { color: #ffffff80; font-weight: 600; }

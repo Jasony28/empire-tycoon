@@ -208,8 +208,8 @@ function harvest(i, auto) {
   if (!p.c || !p.ready) return 0;
   const c = p.c, cr = CROPS[c];
   add(c, cr.yield); G.stats.harvest += cr.yield; addXP(cr.xp);
-  p.c = null; p.ready = false;
-  plant(i, auto ? c : f.sel, true);
+  p.c = null; p.ready = false; p.last = c;
+  if (f.replant !== false || auto) plant(i, c, true);
   return cr.yield;
 }
 function collectAnimal(k) {
@@ -223,7 +223,7 @@ function tickFarm(dt) {
   f.plots.forEach((p, i) => {
     if (p.c && !p.ready && G.t >= p.end) { p.ready = true; dirty = true; }
     if (f.emp && p.ready) harvest(i, true);
-    if (f.emp && !p.c) plant(i, f.sel, true);
+    if (f.emp && !p.c) plant(i, p.last || f.sel, true);
   });
   for (const k in ANIMALS) {
     const a = f.animals[k], d = ANIMALS[k];
@@ -723,23 +723,23 @@ function bizStatus(b) {
 function vFerme() {
   const f = G.biz.ferme;
   let h = bizHead("ferme");
-  h += `<div class="sec">Graine sélectionnée <small>· touche une parcelle pour planter / récolter</small></div><div class="chips">`;
-  for (const c in CROPS) {
-    const cr = CROPS[c], lock = cr.lvl > G.lvl;
-    h += `<button class="chip ${f.sel === c ? "on" : ""} ${lock ? "lock" : ""}" data-a="sel" data-c="${c}">
-      <span>${ITEMS[c].e}</span><b>${lock ? "🔒 " + cr.lvl : cr.seed + " €"}</b><small>${fmtT(cr.time / growSpeed())} · ×${cr.yield}</small></button>`;
-  }
-  h += `</div>`;
   const ready = f.plots.filter(p => p.ready).length, empty = f.plots.filter(p => !p.c).length;
-  h += `<div class="row">
-    <button class="btn" data-a="plantall" ${empty ? "" : "disabled"}>🌱 Tout planter<small>${empty} × ${CROPS[f.sel].seed} €</small></button>
-    <button class="btn gold" data-a="harvall" ${ready ? "" : "disabled"}>🧺 Tout récolter<small>${ready} parcelle(s)</small></button></div>`;
+  // résumé de ce qui pousse
+  const count = {};
+  f.plots.forEach(p => { if (p.c) count[p.c] = (count[p.c] || 0) + 1; });
+  const mix = Object.keys(count).map(c => `${ITEMS[c].e}×${count[c]}`).join("  ");
+  h += `<div class="sec">Tes champs (${f.plots.length}) <small>· touche un champ vide pour choisir quoi planter</small></div>`;
+  if (mix) h += `<div class="mix">${mix}</div>`;
   h += `<div class="plots">`;
   f.plots.forEach((p, i) => {
-    if (!p.c) h += `<button class="plot empty" data-a="plot" data-i="${i}"><span>＋</span></button>`;
+    if (!p.c) h += `<button class="plot empty" data-a="plot" data-i="${i}"><span>＋</span><small>${p.last ? "avant : " + ITEMS[p.last].e : "Planter"}</small></button>`;
     else if (p.ready) h += `<button class="plot ready" data-a="plot" data-i="${i}"><span>${ITEMS[p.c].e}</span><small>Récolter</small></button>`;
-    else h += `<button class="plot grow" data-a="plot" data-i="${i}"><span>🌱</span><small class="mini">${ITEMS[p.c].e}</small>${pbar(p.start, p.end, false, "thin")}</button>`;
+    else h += `<button class="plot grow" data-a="plot" data-i="${i}"><span>${ITEMS[p.c].e}</span>${pbar(p.start, p.end, false, "thin")}</button>`;
   });
+  h += `</div><div class="row">
+    <button class="btn" data-a="plantall" ${empty ? "" : "disabled"}>🌱 Planter les champs vides<small>${empty} champ(s) libre(s)</small></button>
+    <button class="btn gold" data-a="harvall" ${ready ? "" : "disabled"}>🧺 Tout récolter<small>${ready} prêt(s)</small></button></div>
+    <button class="li btnli" data-a="replant"><span class="emo">🔁</span><div class="grow"><b>Replanter la même culture après récolte</b><small>Chaque champ garde sa culture. Désactive pour choisir à chaque fois.</small></div><span class="tag ${f.replant !== false ? "good" : ""}">${f.replant !== false ? "Oui" : "Non"}</span></button>`;
   h += `</div><div class="sec">Animaux</div>`;
   for (const k in ANIMALS) {
     const d = ANIMALS[k], a = f.animals[k];
@@ -754,6 +754,27 @@ function vFerme() {
       <button class="btn sm gold" data-a="colani" data-k="${k}" ${a.st ? "" : "disabled"}>${ITEMS[d.out].e} ${a.st}</button></div></div>`;
   }
   return h + empCard("ferme");
+}
+
+function cropPicker(target) {
+  return () => {
+    const f = G.biz.ferme;
+    const empty = f.plots.filter(p => !p.c).length;
+    const n = target === "all" ? empty : 1;
+    let h = target === "all" ? `<p class="tip">Plante la même culture sur tes <b>${empty}</b> champ(s) vide(s). Pour mélanger, touche les champs un par un.</p>` : "";
+    h += `<div class="list">`;
+    for (const c in CROPS) {
+      const cr = CROPS[c], lock = cr.lvl > G.lvl;
+      if (lock) { h += `<div class="li lock"><span class="emo">${ITEMS[c].e}</span><div class="grow"><b>${ITEMS[c].n}</b><small>🔒 Niveau ${cr.lvl}</small></div></div>`; continue; }
+      const t = cr.time / growSpeed(), val = cr.yield * ref(c), profit = val - cr.seed;
+      h += `<button class="li btnli" data-a="plantc" data-i="${target}" data-c="${c}" ${G.money >= cr.seed ? "" : "disabled"}>
+        <span class="emo">${ITEMS[c].e}</span><div class="grow"><b>${ITEMS[c].n}</b>
+        <small>⏱ ${fmtT(t)} · récolte ×${cr.yield} · vaut ~${fmtP(val)}</small>
+        <small class="good">≈ ${fmtP(profit / t * 60)}/min par champ</small></div>
+        <span class="tag">${n > 1 ? n + " × " : ""}${cr.seed} €</span></button>`;
+    }
+    return h + "</div>";
+  };
 }
 
 function vSuperette() {
@@ -960,7 +981,7 @@ function vMore() {
     <button class="li btnli" data-a="help"><span class="emo">❓</span><div class="grow"><b>Comment jouer</b></div></button>
     <button class="li btnli" data-a="export"><span class="emo">💾</span><div class="grow"><b>Code de sauvegarde</b><small>Copier / coller ta partie sous forme de texte</small></div></button>
     <button class="li btnli danger" data-a="reset"><span class="emo">🗑️</span><div class="grow"><b>Recommencer à zéro</b></div></button></div>
-    <p class="center dim small">Empire Tycoon · v1.2</p>`;
+    <p class="center dim small">Empire Tycoon · v1.3</p>`;
   return h;
 }
 
@@ -1022,16 +1043,32 @@ const A = {
   },
   plot: d => {
     const i = +d.i, p = G.biz.ferme.plots[i];
-    if (!p.c) { if (plant(i, G.biz.ferme.sel)) floatTxt("🌱"); }
+    if (!p.c) openModal(`🌱 Que planter sur le champ ${i + 1} ?`, cropPicker(i));
     else if (p.ready) { const c = p.c, n = harvest(i); floatTxt(`+${n} ${ITEMS[c].e}`, "good"); SFX.coin(); }
     else openModal("🌱 En train de pousser", () => `<p class="center">Encore <b>${fmtT(p.end - G.t)}</b> avant la récolte.</p>
-      <button class="btn gem full" data-a="skip" data-k="p" data-i="${i}">⚡ Finir maintenant · ${skipCost(p.end)} 💎</button>`);
+      <button class="btn gem full" data-a="skip" data-k="p" data-i="${i}">⚡ Finir maintenant · ${skipCost(p.end)} 💎</button>
+      <button class="btn ghost full" data-a="uproot" data-i="${i}">🪓 Arracher pour planter autre chose (graine perdue)</button>`);
   },
-  plantall: () => {
-    const f = G.biz.ferme; let n = 0;
-    f.plots.forEach((p, i) => { if (!p.c && plant(i, f.sel, true)) n++; });
-    if (n) floatTxt(`🌱 ×${n}`); else spend(CROPS[f.sel].seed);
+  plantc: d => {
+    const f = G.biz.ferme, c = d.c;
+    if (CROPS[c].lvl > G.lvl) return;
+    f.sel = c;
+    if (d.i === "all") {
+      let n = 0;
+      f.plots.forEach((p, i) => { if (!p.c && plant(i, c, true)) n++; });
+      if (n) floatTxt(`${ITEMS[c].e} ×${n}`, "good"); else spend(CROPS[c].seed);
+      if (n && f.plots.some(p => !p.c)) toast("💸 Plus assez d'argent pour planter tous les champs");
+    } else if (plant(+d.i, c)) floatTxt(ITEMS[c].e, "good");
+    closeModal();
   },
+  uproot: d => {
+    const p = G.biz.ferme.plots[+d.i];
+    if (!p.c) return closeModal();
+    p.last = p.c; p.c = null; p.ready = false;
+    closeModal(); openModal(`🌱 Que planter sur le champ ${+d.i + 1} ?`, cropPicker(+d.i));
+  },
+  replant: () => { const f = G.biz.ferme; f.replant = f.replant === false; toast(f.replant ? "🔁 Les champs replantent leur culture" : "✋ Tu choisis la culture à chaque récolte"); },
+  plantall: () => openModal("🌱 Planter tous les champs vides", cropPicker("all")),
   harvall: () => {
     const f = G.biz.ferme; let n = 0;
     f.plots.forEach((p, i) => { if (p.ready) n += harvest(i); });
