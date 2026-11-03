@@ -1,6 +1,6 @@
 // Service worker : permet de jouer hors connexion.
 // ⚠️ Change le numéro de version à chaque mise à jour du jeu pour forcer le rafraîchissement.
-const CACHE = "empire-tycoon-v6";
+const CACHE = "empire-tycoon-v7";
 const FILES = ["./", "./index.html", "./style.css", "./data.js", "./game.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

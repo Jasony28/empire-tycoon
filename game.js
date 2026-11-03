@@ -28,7 +28,7 @@ function fmtT(s) {
 
 // ---------- État ----------
 const SAVE_KEY = "empire-tycoon-save";
-const VERSION = "v1.4";
+const VERSION = "v1.5";
 let G;
 let OFF = false;          // simulation hors-ligne en cours
 let dirty = true;
@@ -224,7 +224,7 @@ function tickFarm(dt) {
   f.plots.forEach((p, i) => {
     if (p.c && !p.ready && G.t >= p.end) { p.ready = true; dirty = true; }
     if (f.emp && p.ready) harvest(i, true);
-    if (f.emp && !p.c) plant(i, p.last || f.sel, true);
+    if (f.emp && !p.c && !(p.hold > G.t)) plant(i, p.last || f.sel, true);
   });
   for (const k in ANIMALS) {
     const a = f.animals[k], d = ANIMALS[k];
@@ -1045,7 +1045,7 @@ const A = {
   },
   plot: d => {
     const i = +d.i, p = G.biz.ferme.plots[i];
-    if (!p.c) openModal(`🌱 Que planter sur le champ ${i + 1} ?`, cropPicker(i));
+    if (!p.c) { p.hold = G.t + 60; openModal(`🌱 Que planter sur le champ ${i + 1} ?`, cropPicker(i)); }
     else if (p.ready) { const c = p.c, n = harvest(i); floatTxt(`+${n} ${ITEMS[c].e}`, "good"); SFX.coin(); }
     else openModal("🌱 En train de pousser", () => `<p class="center">Encore <b>${fmtT(p.end - G.t)}</b> avant la récolte.</p>
       <button class="btn gem full" data-a="skip" data-k="p" data-i="${i}">⚡ Finir maintenant · ${skipCost(p.end)} 💎</button>
@@ -1060,13 +1060,18 @@ const A = {
       f.plots.forEach((p, i) => { if (!p.c && plant(i, c, true)) n++; });
       if (n) floatTxt(`${ITEMS[c].e} ×${n}`, "good"); else spend(CROPS[c].seed);
       if (n && f.plots.some(p => !p.c)) toast("💸 Plus assez d'argent pour planter tous les champs");
-    } else if (plant(+d.i, c)) floatTxt(ITEMS[c].e, "good");
+    } else {
+      const p = f.plots[+d.i];
+      if (p.c && p.c !== c) { p.c = null; p.ready = false; }
+      if (!p.c && plant(+d.i, c)) { p.last = c; floatTxt(ITEMS[c].e, "good"); }
+      p.hold = 0;
+    }
     closeModal();
   },
   uproot: d => {
     const p = G.biz.ferme.plots[+d.i];
     if (!p.c) return closeModal();
-    p.last = p.c; p.c = null; p.ready = false;
+    p.c = null; p.ready = false; p.hold = G.t + 60;
     closeModal(); openModal(`🌱 Que planter sur le champ ${+d.i + 1} ?`, cropPicker(+d.i));
   },
   replant: () => { const f = G.biz.ferme; f.replant = f.replant === false; toast(f.replant ? "🔁 Les champs replantent leur culture" : "✋ Tu choisis la culture à chaque récolte"); },
