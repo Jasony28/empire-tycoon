@@ -28,7 +28,7 @@ function fmtT(s) {
 
 // ---------- État ----------
 const SAVE_KEY = "empire-tycoon-save";
-const VERSION = "v1.5";
+const VERSION = "v1.6";
 let G;
 let OFF = false;          // simulation hors-ligne en cours
 let dirty = true;
@@ -308,13 +308,20 @@ function collectMachine(i) {
   startRecipe(i, r, true);
   return r;
 }
+function stopMachine(i) {
+  const m = G.biz.usine.machines[i];
+  if (!m.r) return;
+  if (m.ready) collectMachine(i);
+  if (m.r && !m.ready) { for (const k in RECIPES[m.r].in) add(k, RECIPES[m.r].in[k]); }
+  m.r = null; m.ready = false;
+}
 function tickUsine() {
   const u = G.biz.usine;
   if (!u.own) return;
   u.machines.forEach((m, i) => {
     if (m.r && !m.ready && G.t >= m.end) { m.ready = true; dirty = true; }
     if (u.emp && m.ready) collectMachine(i);
-    if (u.emp && !m.r && m.last) startRecipe(i, m.last, true);
+    if (u.emp && !m.r && m.last && !(m.hold > G.t)) startRecipe(i, m.last, true);
   });
 }
 
@@ -806,10 +813,11 @@ function vUsine() {
   let h = bizHead("usine");
   h += `<div class="sec">Chaînes de production (${u.machines.length}) <small>· vitesse ×${craftSpeed().toFixed(1)}</small></div>`;
   u.machines.forEach((m, i) => {
-    if (!m.r) h += `<button class="machine idle" data-a="pickrec" data-i="${i}">⚙️ Chaîne ${i + 1} à l'arrêt<small>Touche pour lancer une recette</small></button>`;
-    else if (m.ready) h += `<button class="machine ready" data-a="colm" data-i="${i}"><span>${ITEMS[m.r].e}</span><div><b>${ITEMS[m.r].n} prêt !</b><small>Touche pour récupérer et relancer</small></div></button>`;
-    else h += `<div class="machine run"><span>${ITEMS[m.r].e}</span><div class="grow"><b>${ITEMS[m.r].n}</b>${pbar(m.start, m.end)}</div>
-      <button class="btn sm gem" data-a="skip" data-k="m" data-i="${i}">⚡ ${skipCost(m.end)}💎</button></div>`;
+    if (!m.r) h += `<button class="machine idle" data-a="pickrec" data-i="${i}">⚙️ Chaîne ${i + 1} à l'arrêt<small>Touche pour choisir une recette</small></button>`;
+    else if (m.ready) h += `<div class="machine ready"><span>${ITEMS[m.r].e}</span><div class="grow"><b>${ITEMS[m.r].n} prêt !</b><small>Récupère pour relancer la même recette</small></div>
+      <div class="acol"><button class="btn sm gold" data-a="colm" data-i="${i}">Récupérer</button><button class="btn sm ghost" data-a="mach" data-i="${i}">🔄 Changer</button></div></div>`;
+    else h += `<div class="machine run"><span>${ITEMS[m.r].e}</span><div class="grow"><b>${ITEMS[m.r].n}</b><small>Chaîne ${i + 1}</small>${pbar(m.start, m.end)}</div>
+      <div class="acol"><button class="btn sm ghost" data-a="mach" data-i="${i}">🔄 Changer</button><button class="btn sm gem" data-a="skip" data-k="m" data-i="${i}">⚡ ${skipCost(m.end)}💎</button></div></div>`;
   });
   h += `<div class="sec">Recettes</div><div class="list">`;
   for (const r in RECIPES) {
@@ -821,14 +829,20 @@ function vUsine() {
 }
 function recipeModal(i) {
   return () => {
-    let h = `<div class="list">`;
+    const m = G.biz.usine.machines[i];
+    const back = m.r && !m.ready ? RECIPES[m.r].in : {};
+    let h = m.r ? `<div class="card"><b>En ce moment : ${ITEMS[m.r].e} ${ITEMS[m.r].n}</b>
+      <small>${m.ready ? "La production finie sera récupérée avant de changer." : "Si tu changes, les ingrédients en cours te sont rendus."}</small>
+      <button class="btn ghost full" data-a="stopm" data-i="${i}">⏹️ Arrêter cette chaîne</button></div><div class="sec">Nouvelle recette</div>` : "";
+    h += `<div class="list">`;
     for (const r in RECIPES) {
       const rc = RECIPES[r];
       if (rc.lvl > G.lvl) continue;
-      const ok = canMake(rc.in);
+      const ok = Object.keys(rc.in).every(k => have(k) + (back[k] || 0) >= rc.in[k]);
+      const cur = m.r === r;
       let inV = 0; for (const k in rc.in) inV += rc.in[k] * ref(k);
-      h += `<button class="li btnli" data-a="startrec" data-i="${i}" data-r="${r}" ${ok ? "" : "disabled"}>
-        <span class="emo">${ITEMS[r].e}</span><div class="grow"><b>${ITEMS[r].n}</b><small>${ingr(rc.in)}</small>
+      h += `<button class="li btnli" data-a="startrec" data-i="${i}" data-r="${r}" ${ok && !cur ? "" : "disabled"}>
+        <span class="emo">${ITEMS[r].e}</span><div class="grow"><b>${ITEMS[r].n}${cur ? ' <span class="tag good">en cours</span>' : ""}</b><small>${ingr(rc.in)}</small>
         <small class="dim">⏱ ${fmtT(rc.time / craftSpeed())} · valeur ${fmtP(inV)} → <b class="good">${fmtP(ref(r))}</b></small></div></button>`;
     }
     return h + "</div>";
@@ -1116,8 +1130,18 @@ const A = {
     if (!spend(cost)) return;
     add(d.id, q); toast(`🏬 +${q} ${ITEMS[d.id].e} achetés`); refreshModal();
   },
-  pickrec: d => openModal("⚙️ Lancer une production", recipeModal(+d.i)),
-  startrec: d => { if (startRecipe(+d.i, d.r)) { closeModal(); floatTxt("⚙️"); } },
+  pickrec: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`⚙️ Chaîne ${+d.i + 1} : que produire ?`, recipeModal(+d.i)); },
+  mach: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`🔄 Changer la chaîne ${+d.i + 1}`, recipeModal(+d.i)); },
+  startrec: d => {
+    const i = +d.i, m = G.biz.usine.machines[i];
+    if (m.r) stopMachine(i);
+    if (startRecipe(i, d.r)) { m.hold = 0; closeModal(); floatTxt(ITEMS[d.r].e, "good"); toast(`⚙️ Chaîne ${i + 1} : ${ITEMS[d.r].n}`); }
+  },
+  stopm: d => {
+    const i = +d.i, m = G.biz.usine.machines[i];
+    stopMachine(i); m.last = null; m.hold = 0;
+    closeModal(); toast(`⏹️ Chaîne ${i + 1} arrêtée, ingrédients rendus`);
+  },
   colm: d => { const r = collectMachine(+d.i); if (r) { floatTxt(`+1 ${ITEMS[r].e}`, "good"); SFX.coin(); } },
   skip: d => {
     const i = +d.i;
