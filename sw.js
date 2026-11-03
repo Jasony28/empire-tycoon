@@ -1,6 +1,6 @@
 // Service worker : permet de jouer hors connexion.
 // ⚠️ Change le numéro de version à chaque mise à jour du jeu pour forcer le rafraîchissement.
-const CACHE = "empire-tycoon-v5";
+const CACHE = "empire-tycoon-v6";
 const FILES = ["./", "./index.html", "./style.css", "./data.js", "./game.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -17,7 +17,8 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    fetch(e.request)
+    // Toujours demander la dernière version au serveur (sans cache HTTP)
+    (new URL(e.request.url).origin === location.origin ? fetch(e.request.url, { cache: "no-cache" }) : fetch(e.request))
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));

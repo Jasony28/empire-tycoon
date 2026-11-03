@@ -28,6 +28,7 @@ function fmtT(s) {
 
 // ---------- État ----------
 const SAVE_KEY = "empire-tycoon-save";
+const VERSION = "v1.4";
 let G;
 let OFF = false;          // simulation hors-ligne en cours
 let dirty = true;
@@ -978,10 +979,11 @@ function vMore() {
     <button class="li btnli" data-a="set" data-k="sound"><span class="emo">${G.settings.sound ? "🔊" : "🔇"}</span><div class="grow"><b>Sons</b></div><span class="tag">${G.settings.sound ? "Oui" : "Non"}</span></button>
     <button class="li btnli" data-a="set" data-k="vibe"><span class="emo">📳</span><div class="grow"><b>Vibrations</b></div><span class="tag">${G.settings.vibe ? "Oui" : "Non"}</span></button>
     ${deferredInstall ? `<button class="li btnli" data-a="install"><span class="emo">📲</span><div class="grow"><b>Installer le jeu</b><small>Ajouter sur l'écran d'accueil</small></div></button>` : ""}
+    <button class="li btnli" data-a="update"><span class="emo">🔄</span><div class="grow"><b>Mettre à jour le jeu</b><small>Version actuelle : ${VERSION} · ta partie est gardée</small></div></button>
     <button class="li btnli" data-a="help"><span class="emo">❓</span><div class="grow"><b>Comment jouer</b></div></button>
     <button class="li btnli" data-a="export"><span class="emo">💾</span><div class="grow"><b>Code de sauvegarde</b><small>Copier / coller ta partie sous forme de texte</small></div></button>
     <button class="li btnli danger" data-a="reset"><span class="emo">🗑️</span><div class="grow"><b>Recommencer à zéro</b></div></button></div>
-    <p class="center dim small">Empire Tycoon · v1.3</p>`;
+    <p class="center dim small">Empire Tycoon · ${VERSION}</p>`;
   return h;
 }
 
@@ -1183,6 +1185,15 @@ const A = {
   },
   set: d => { G.settings[d.k] = !G.settings[d.k]; },
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; dirty = true; },
+  update: async () => {
+    save();
+    toast("🔄 Recherche de la dernière version…");
+    try {
+      if (swReg) await swReg.update();
+      if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
+    } catch (e) {}
+    setTimeout(() => location.reload(), 600);
+  },
   help: () => openModal("❓ Comment jouer", () => HELP),
   savenow: () => { if (save()) { toast("💾 Partie sauvegardée !", "good"); SFX.coin(); } else toast("⚠️ Sauvegarde impossible ici : utilise « Fichier »", "bad"); },
   savefile: () => {
@@ -1287,7 +1298,7 @@ function updTimers() {
 }
 
 // ---------- Démarrage ----------
-let deferredInstall = null, pendingLoad = null;
+let deferredInstall = null, pendingLoad = null, swReg = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; dirty = true; });
 
 document.addEventListener("pointerdown", e => { lastXY = [e.clientX, e.clientY]; pressing = true; }, true);
@@ -1346,6 +1357,12 @@ function init() {
   setInterval(frame, 100);
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
   window.addEventListener("pagehide", save);
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(r => { swReg = r; r.update().catch(() => {}); }).catch(() => {});
+    // Quand une nouvelle version prend la main, on recharge une fois pour l'afficher
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloaded || !hadController) return; reloaded = true; save(); location.reload(); });
+    var hadController = !!navigator.serviceWorker.controller;
+  }
 }
 document.addEventListener("DOMContentLoaded", init);
