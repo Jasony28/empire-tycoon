@@ -1,6 +1,10 @@
 "use strict";
 // ===== EMPIRE TYCOON — Moteur du jeu =====
 
+// Icônes dessinées (pièce, diamant)
+const GEM = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l5 6-10 12L2 9z" fill="#36c5e6" stroke="#23314d" stroke-width="2" stroke-linejoin="round"/><path d="M2 9h20M9 3l3 6 3-6M12 9v12" fill="none" stroke="#23314d" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+const COIN = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffc928" stroke="#23314d" stroke-width="2"/><circle cx="12" cy="12" r="5.5" fill="none" stroke="#c98a00" stroke-width="2"/></svg>';
+
 // ---------- Outils ----------
 const $ = s => document.querySelector(s);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -28,7 +32,7 @@ function fmtT(s) {
 
 // ---------- État ----------
 const SAVE_KEY = "empire-tycoon-save";
-const VERSION = "v2.0";
+const VERSION = "v2.1";
 let G;
 let OFF = false;          // simulation hors-ligne en cours
 let dirty = true;
@@ -91,7 +95,7 @@ function saveAgo() {
 function importData(d) {
   applySave(d); sync(); save();
   closeModal(); scr = "home"; dirty = true;
-  toast(`✅ Partie chargée : niveau ${G.lvl}, ${money(G.money)}`, "good"); SFX.level();
+  toast(`Partie chargée : niveau ${G.lvl}, ${money(G.money)}`, "good"); SFX.level();
 }
 const saveCode = () => btoa(unescape(encodeURIComponent(JSON.stringify(G))));
 
@@ -180,11 +184,11 @@ function gain(a, opt = {}) {
   return a;
 }
 function spend(a) {
-  if (G.money < a) { toast("💸 Pas assez d'argent (" + money(a) + ")", "bad"); SFX.err(); return false; }
+  if (G.money < a) { toast("Pas assez d'argent (" + money(a) + ")", "bad"); SFX.err(); return false; }
   G.money -= a; return true;
 }
 function spendGems(n) {
-  if (G.gems < n) { toast("💎 Pas assez de diamants", "bad"); SFX.err(); return false; }
+  if (G.gems < n) { toast("Pas assez de diamants", "bad"); SFX.err(); return false; }
   G.gems -= n; return true;
 }
 function incomeRate() {
@@ -297,11 +301,11 @@ function customer() {
     const got = gain(price * q);
     G.stats.sold += q; addXP(q);
     s.rep = Math.min(100, s.rep + (sh.mk <= 0.1 ? 0.6 : sh.mk <= 0.25 ? 0.25 : 0.05) * (E("superette", "market") ? 2 : 1));
-    s.log.unshift(`🧍 ${q}× ${ITEMS[sh.item].e} <b>+${money(got)}</b>`);
-    if (sh.qty <= 0 && !E("superette", "magasin")) { sh.qty = 0; if (!OFF) toast(`🛒 Rayon ${ITEMS[sh.item].e} vide !`); }
+    s.log.unshift(`Vendu ${q}× ${ITEMS[sh.item].e} <b>+${money(got)}</b>`);
+    if (sh.qty <= 0 && !E("superette", "magasin")) { sh.qty = 0; if (!OFF) toast(`Rayon ${ITEMS[sh.item].e} vide !`); }
   } else {
     s.rep = Math.max(0, s.rep - 0.5);
-    s.log.unshift(`😤 ${ITEMS[sh.item].e} trop cher, le client repart`);
+    s.log.unshift(`${ITEMS[sh.item].e} trop cher, le client repart sans rien`);
   }
   s.log.length = Math.min(s.log.length, 6);
   dirty = true;
@@ -319,7 +323,7 @@ function tickShop(dt) {
 function startRecipe(i, r, auto) {
   const m = G.biz.usine.machines[i], rc = RECIPES[r];
   if (!rc || m.r || rc.lvl > G.lvl) return false;
-  if (!canMake(rc.in)) { if (!auto) { toast("🧺 Ingrédients manquants", "bad"); SFX.err(); } return false; }
+  if (!canMake(rc.in)) { if (!auto) { toast("Ingrédients manquants", "bad"); SFX.err(); } return false; }
   consume(rc.in);
   m.r = r; m.last = r; m.start = G.t; m.end = G.t + rc.time / craftSpeed(); m.ready = false;
   return true;
@@ -363,7 +367,7 @@ function serve(id, auto) {
   const r = G.biz.resto, o = r.orders.find(x => x.id === id);
   if (!o) return false;
   const d = DISHES[o.d];
-  if (!canMake(d.in)) { if (!auto) { toast("🧺 Il manque des ingrédients", "bad"); SFX.err(); } return false; }
+  if (!canMake(d.in)) { if (!auto) { toast("Il manque des ingrédients", "bad"); SFX.err(); } return false; }
   consume(d.in);
   const left = (o.end - G.t) / (o.end - o.start);
   rate(left > 0.6 ? 5 : left > 0.3 ? 4 : 3);
@@ -400,7 +404,7 @@ function tickResto(dt) {
     if (G.t > o.end) {
       r.orders = r.orders.filter(x => x !== o);
       rate(1); G.stats.missed++; dirty = true;
-      if (!OFF) toast(`😠 Un client est parti sans manger (${DISHES[o.d].e})`, "bad");
+      if (!OFF) toast(`Un client est parti sans manger (${DISHES[o.d].e})`, "bad");
     }
   }
   if (E("resto", "chef")) {
@@ -441,7 +445,7 @@ function acceptContract(c, silent) {
   Object.assign(tr, { busy: true, c, start: G.t, end: G.t + c.dur / truckSpeed() });
   t.contracts = t.contracts.filter(x => x !== c);
   t.contracts.push(genContract());
-  if (!silent && !OFF) { toast(`🚚 Camion en route vers ${c.city} !`); vib(30); }
+  if (!silent && !OFF) { toast(`Camion en route vers ${c.city} !`); vib(30); }
   return true;
 }
 function tickTransport() {
@@ -454,7 +458,7 @@ function tickTransport() {
       const got = gain(c.reward);
       G.stats.contracts++; addXP(c.xp);
       tr.busy = false; tr.c = null; dirty = true;
-      if (!OFF) { toast(`🚚 Livraison à ${c.city} terminée : +${money(got)}`, "good"); SFX.coin(); }
+      if (!OFF) { toast(`Livraison à ${c.city} terminée : +${money(got)}`, "good"); SFX.coin(); }
     }
   }
 }
@@ -520,11 +524,11 @@ function newDay() {
   t.contracts = t.contracts.filter(c => c.exp >= G.day);
   if (t.own) while (t.contracts.length < 4) t.contracts.push(genContract());
   if (!OFF) {
-    let msg = `☀️ <b>Jour ${G.day}</b>`;
+    let msg = `<b>Jour ${G.day}</b>`;
     if (gotRent) msg += ` · loyers +${money(gotRent)}`;
     if (w) msg += ` · salaires -${money(w)}`;
     toast(msg);
-    if (fired.length) toast(`😢 Impossible de payer : ${fired.join(", ")} démissionne`, "bad");
+    if (fired.length) toast(`Impossible de payer : ${fired.join(", ")} démissionne`, "bad");
   }
   dirty = true;
 }
@@ -557,7 +561,7 @@ function checkAch() {
   for (const a of ACHS) {
     if (!G.ach[a.id] && a.c(G)) {
       G.ach[a.id] = 1; G.gems += a.g;
-      toast(`🏆 Succès : <b>${a.n}</b> (+${a.g} 💎)`, "good"); SFX.level();
+      toast(`Succès : <b>${a.n}</b> (+${a.g} ${GEM})`, "good"); SFX.level();
       dirty = true;
     }
   }
@@ -652,9 +656,9 @@ function levelUp(from) {
   SFX.level(); vib(60);
   let ul = [];
   for (let l = from + 1; l <= G.lvl; l++) ul = ul.concat(unlocksAt(l));
-  openModal("🎉 Niveau " + G.lvl + " !", () => `
+  openModal("Niveau " + G.lvl + " !", () => `
     <div class="center big">⭐</div>
-    <p class="center">Bravo patron ! Tu gagnes <b>${2 * (G.lvl - from)} 💎</b>.</p>
+    <p class="center">Bravo patron ! Tu gagnes <b>${2 * (G.lvl - from)} ${GEM}</b>.</p>
     ${ul.length ? `<div class="sec">Nouveautés débloquées</div><ul class="ul">${ul.map(x => `<li>${x}</li>`).join("")}</ul>` : ""}
     <button class="btn gold full" data-a="close">Continuer</button>`);
 }
@@ -691,12 +695,12 @@ const skipCost = end => Math.max(1, Math.ceil((end - G.t) / 60));
 function bizHead(b) {
   const o = G.biz[b], d = BIZ[b];
   const up = o.lvl < MAX_LVL
-    ? `<button class="upbtn" data-a="upg" data-b="${b}">⬆️ <b>${money(upCost(b))}</b></button>`
-    : `<span class="upbtn max">MAX ⭐</span>`;
+    ? `<button class="upbtn" data-a="upg" data-b="${b}"><b>${money(upCost(b))}</b></button>`
+    : `<span class="upbtn max">Niveau max</span>`;
   return `<div class="bhead" style="--c:${d.col}">
     <button class="back" data-a="nav" data-s="home">‹</button>
     <div class="bemo">${d.e}</div>
-    <div class="btitle"><h2>${d.n}</h2><div class="lvdots">${Array.from({ length: MAX_LVL }, (_, i) => `<i class="${i < o.lvl ? "on" : ""}"></i>`).join("")}</div></div>
+    <div class="btitle"><h2>${d.n}</h2><div class="lvl-line"><span>Niv. ${o.lvl}/${MAX_LVL}</span><div class="lvbar"><i style="width:${o.lvl / MAX_LVL * 100}%"></i></div></div></div>
     ${up}</div>`;
 }
 function empCard(b) {
@@ -706,7 +710,7 @@ function empCard(b) {
     const on = E(b, e.id), lock = o.lvl < e.lvl;
     h += `<div class="card emp ${lock ? "lock" : ""}"><div class="emo">${e.e}</div>
       <div class="grow"><b>${e.n}</b> ${on ? '<span class="tag good">En poste</span>' : ""}<small>${e.desc}</small>
-      <small class="dim">${lock ? `🔒 ${BIZ[b].n} niveau ${e.lvl}` : on ? `Salaire ${money(e.wage)} / jour` : `Embauche ${money(e.wage * 40)} · puis ${money(e.wage)} / jour`}</small></div>
+      <small class="dim">${lock ? `Disponible au niveau ${e.lvl} de l'entreprise` : on ? `Salaire ${money(e.wage)} / jour` : `Embauche ${money(e.wage * 40)} · puis ${money(e.wage)} / jour`}</small></div>
       ${lock ? "" : `<button class="btn sm ${on ? "ghost" : "gold"}" data-a="emp" data-b="${b}" data-e="${e.id}">${on ? "Renvoyer" : "Embaucher"}</button>`}</div>`;
   }
   return h;
@@ -720,14 +724,8 @@ function vHome() {
   h += `<div class="stats3">
     <div class="card"><small>Valeur de l'empire</small><b>${money(netWorth())}</b></div>
     <div class="card"><small>Revenus</small><b>${money(incomeRate())}<em>/min</em></b></div></div>`;
-  // objectif
-  const next = BIZ_ORDER.find(b => !G.biz[b].own);
-  const qr = questsReady();
-  if (qr) h += `<button class="goal" data-a="nav" data-s="quests">🎯 <b>${qr} mission${qr > 1 ? "s" : ""} terminée${qr > 1 ? "s" : ""}</b> — récupère ta récompense !</button>`;
-  else if (next) {
-    const d = BIZ[next];
-    h += `<div class="goal">🎯 Prochain objectif : ouvrir <b>${d.e} ${d.n}</b> ${G.lvl < d.lvl ? `(niveau ${d.lvl} requis)` : `pour ${money(d.cost)}`}</div>`;
-  } else if (G.runEarned >= PRESTIGE_MIN) h += `<button class="goal" data-a="nav" data-s="more">🌟 Tu peux faire un <b>prestige</b> pour devenir encore plus riche !</button>`;
+  const tip = nextStep();
+  if (tip) h += `<button class="goal" ${tip.act}><span class="goal-k">À faire</span><span class="goal-t">${tip.t}</span></button>`;
 
   h += `<div class="sec">Tes entreprises</div><div class="bgrid">`;
   for (const b of BIZ_ORDER) {
@@ -741,11 +739,31 @@ function vHome() {
       h += `<button class="bcard buy" style="--c:${d.col}" data-a="buybiz" data-b="${b}">
         <span class="bemo">${d.e}</span><b>${d.n}</b><small>${d.desc}</small><em class="price ${G.money >= d.cost ? "ok" : ""}">Ouvrir · ${money(d.cost)}</em></button>`;
     } else {
-      h += `<div class="bcard lock"><span class="bemo">${d.e}</span><b>${d.n}</b><small>${d.desc}</small><em>🔒 Niveau ${d.lvl}</em></div>`;
+      h += `<div class="bcard lock"><span class="bemo">${d.e}</span><b>${d.n}</b><small>${d.desc}</small><em>Niveau ${d.lvl}</em></div>`;
     }
   }
   return h + "</div>";
 }
+// La prochaine action utile, dans l'ordre où un joueur en a besoin
+function nextStep() {
+  const f = G.biz.ferme, qr = questsReady();
+  const go = b => `data-a="open" data-b="${b}"`;
+  if (qr) return { t: `Récupère la récompense de ${qr > 1 ? qr + " missions terminées" : "ta mission terminée"}.`, act: `data-a="nav" data-s="quests"` };
+  if (f.plots.some(p => p.ready) && !E("ferme", "fermier")) return { t: "Des récoltes sont prêtes à la ferme.", act: go("ferme") };
+  if (f.plots.every(p => !p.c)) return { t: "Plante tes premiers champs : ouvre la ferme et touche un champ vide.", act: go("ferme") };
+  const next = BIZ_ORDER.find(b => !G.biz[b].own);
+  if (next && G.lvl >= BIZ[next].lvl && G.money >= BIZ[next].cost) return { t: `Tu peux ouvrir ${BIZ[next].n.toLowerCase() === "immobilier" ? "l'agence immobilière" : "ta " + BIZ[next].n.toLowerCase()} pour ${money(BIZ[next].cost)}.`, act: `data-a="buybiz" data-b="${next}"` };
+  const sp = G.biz.superette;
+  if (sp.own && sp.shelves.some(s => !s.item) && Object.keys(G.inv).some(id => have(id) > 0)) return { t: "Un rayon de la supérette est vide : mets-y une partie de ton stock.", act: go("superette") };
+  const u = G.biz.usine;
+  if (u.own && u.machines.some(m => !m.r)) return { t: "Une chaîne de l'usine est à l'arrêt : lance une recette.", act: go("usine") };
+  const cheap = BIZ_ORDER.filter(b => G.biz[b].own && G.biz[b].lvl < MAX_LVL).sort((a, b) => upCost(a) - upCost(b))[0];
+  if (cheap && G.money >= upCost(cheap)) return { t: `Améliore ${BIZ[cheap].n.toLowerCase()} au niveau ${G.biz[cheap].lvl + 1} pour ${money(upCost(cheap))}.`, act: go(cheap) };
+  if (next) return { t: G.lvl < BIZ[next].lvl ? `Atteins le niveau ${BIZ[next].lvl} pour débloquer : ${BIZ[next].n}.` : `Mets ${money(BIZ[next].cost)} de côté pour ouvrir : ${BIZ[next].n}.`, act: go(next) };
+  if (G.runEarned >= PRESTIGE_MIN) return { t: "Ton empire peut être revendu contre des étoiles (prestige).", act: `data-a="nav" data-s="more"` };
+  return null;
+}
+
 function bizStatus(b) {
   const o = G.biz[b];
   switch (b) {
@@ -753,22 +771,22 @@ function bizStatus(b) {
       const r = o.plots.filter(p => p.ready).length, g = o.plots.filter(p => p.c && !p.ready).length;
       const an = Object.values(o.animals).reduce((s, a) => s + a.st, 0);
       const empty = o.plots.length - r - g;
-      return { alert: (r || an || empty) && !E("ferme", "fermier"), txt: r ? `🧺 ${r} prête(s)` : an ? `🥚 ${an} à ramasser` : empty ? `🌱 ${empty} parcelle(s) libre(s)` : `🌱 ${g} en culture` };
+      return { alert: (r || an || empty) && !E("ferme", "fermier"), txt: r ? `${r} prête(s)` : an ? `${an} à ramasser` : empty ? `${empty} parcelle(s) libre(s)` : `${g} en culture` };
     }
     case "superette": {
       const em = o.shelves.filter(s => !s.item || s.qty <= 0).length;
-      return { alert: em > 0, txt: em ? `⚠️ ${em} rayon(s) vide(s)` : `⭐ Réputation ${Math.round(o.rep)}%` };
+      return { alert: em > 0, txt: em ? `${em} rayon(s) vide(s)` : `Réputation ${Math.round(o.rep)}%` };
     }
     case "usine": {
       const r = o.machines.filter(m => m.ready).length, idle = o.machines.filter(m => !m.r).length;
-      return { alert: (r || idle) && !E("usine", "ouvrier"), txt: r ? `✅ ${r} prête(s)` : idle ? `⚙️ ${idle} machine(s) à l'arrêt` : `⚙️ En production` };
+      return { alert: (r || idle) && !E("usine", "ouvrier"), txt: r ? `${r} prête(s)` : idle ? `${idle} machine(s) à l'arrêt` : `En production` };
     }
-    case "resto": return { alert: o.orders.length > 0 && !E("resto", "chef"), txt: o.orders.length ? `🔔 ${o.orders.length} client(s)` : `★ ${rating().toFixed(1)}` };
+    case "resto": return { alert: o.orders.length > 0 && !E("resto", "chef"), txt: o.orders.length ? `${o.orders.length} client(s)` : `${rating().toFixed(1)}` };
     case "transport": {
       const free = o.trucks.filter(t => !t.busy).length;
-      return { alert: free > 0, txt: free ? `🚚 ${free} camion(s) dispo` : `🛣️ Tous en route` };
+      return { alert: free > 0, txt: free ? `${free} camion(s) dispo` : `Tous en route` };
     }
-    case "immo": return { alert: false, txt: `🔑 +${money(rentPerDay())}/jour` };
+    case "immo": return { alert: false, txt: `+${money(rentPerDay())}/jour` };
   }
 }
 
@@ -786,21 +804,21 @@ function vFerme() {
   f.plots.forEach((p, i) => {
     if (!p.c) h += `<button class="plot empty" data-a="plot" data-i="${i}"><span>＋</span><small>${p.last ? "avant : " + ITEMS[p.last].e : "Planter"}</small></button>`;
     else if (p.ready) h += `<button class="plot ready" data-a="plot" data-i="${i}"><span>${ITEMS[p.c].e}</span><small>Récolter</small></button>`;
-    else h += `<button class="plot grow" data-a="plot" data-i="${i}"><span>${ITEMS[p.c].e}</span>${pbar(p.start, p.end, false, "thin")}</button>`;
+    else h += `<button class="plot grow" data-a="plot" data-i="${i}"><span data-gs="${p.start}" data-ge="${p.end}" data-c="${ITEMS[p.c].e}">🌱</span>${pbar(p.start, p.end, false, "thin")}</button>`;
   });
   h += `</div><div class="row">
-    <button class="btn" data-a="plantall" ${empty ? "" : "disabled"}>🌱 Planter les champs vides<small>${empty} champ(s) libre(s)</small></button>
-    <button class="btn gold" data-a="harvall" ${ready ? "" : "disabled"}>🧺 Tout récolter<small>${ready} prêt(s)</small></button></div>
-    <button class="li btnli" data-a="replant"><span class="emo">🔁</span><div class="grow"><b>Replanter la même culture après récolte</b><small>Chaque champ garde sa culture. Désactive pour choisir à chaque fois.</small></div><span class="tag ${f.replant !== false ? "good" : ""}">${f.replant !== false ? "Oui" : "Non"}</span></button>`;
+    <button class="btn" data-a="plantall" ${empty ? "" : "disabled"}>Planter les champs vides<small>${empty} champ(s) libre(s)</small></button>
+    <button class="btn gold" data-a="harvall" ${ready ? "" : "disabled"}>Tout récolter<small>${ready} prêt(s)</small></button></div>
+    <button class="li btnli" data-a="replant"><div class="grow"><b>Replanter la même culture après récolte</b><small>Chaque champ garde sa culture. Désactive pour choisir à chaque fois.</small></div><span class="tag ${f.replant !== false ? "good" : ""}">${f.replant !== false ? "Oui" : "Non"}</span></button>`;
   h += `</div><div class="sec">Animaux</div>`;
   for (const k in ANIMALS) {
     const d = ANIMALS[k], a = f.animals[k];
-    if (d.lvl > G.lvl) { h += `<div class="card animal lock"><div class="aemo">${d.e}</div><div class="grow"><b>${d.n}s</b><small>🔒 Niveau ${d.lvl}</small></div></div>`; continue; }
+    if (d.lvl > G.lvl) { h += `<div class="card animal lock"><div class="aemo">${d.e}</div><div class="grow"><b>${d.n}s</b><small>Niveau ${d.lvl}</small></div></div>`; continue; }
     h += `<div class="card animal"><div class="aemo">${d.e}</div><div class="grow">
       <b>${d.n}s ${a.n}/${animalCap()}</b>
       <small>Produit ${ITEMS[d.out].e} toutes les ${d.period}s · mange ${ITEMS[d.feed].e} (stock : ${have(d.feed)})</small>
       ${a.n ? `<div class="pb thin" data-anim="${k}"><i></i></div>` : ""}
-      ${a.hungry ? `<small class="warn">⚠️ Plus de ${ITEMS[d.feed].n.toLowerCase()} pour les nourrir !</small>` : ""}
+      ${a.hungry ? `<small class="warn">Plus de ${ITEMS[d.feed].n.toLowerCase()} pour les nourrir !</small>` : ""}
       </div><div class="acol">
       <button class="btn sm" data-a="buyani" data-k="${k}" ${a.n >= animalCap() ? "disabled" : ""}>+1 · ${money(animalCost(k))}</button>
       <button class="btn sm gold" data-a="colani" data-k="${k}" ${a.st ? "" : "disabled"}>${ITEMS[d.out].e} ${a.st}</button></div></div>`;
@@ -817,11 +835,11 @@ function cropPicker(target) {
     h += `<div class="list">`;
     for (const c in CROPS) {
       const cr = CROPS[c], lock = cr.lvl > G.lvl;
-      if (lock) { h += `<div class="li lock"><span class="emo">${ITEMS[c].e}</span><div class="grow"><b>${ITEMS[c].n}</b><small>🔒 Niveau ${cr.lvl}</small></div></div>`; continue; }
+      if (lock) { h += `<div class="li lock"><span class="emo">${ITEMS[c].e}</span><div class="grow"><b>${ITEMS[c].n}</b><small>Niveau ${cr.lvl}</small></div></div>`; continue; }
       const t = cr.time / growSpeed(), val = cr.yield * ref(c), profit = val - cr.seed;
       h += `<button class="li btnli" data-a="plantc" data-i="${target}" data-c="${c}" ${G.money >= cr.seed ? "" : "disabled"}>
         <span class="emo">${ITEMS[c].e}</span><div class="grow"><b>${ITEMS[c].n}</b>
-        <small>⏱ ${fmtT(t)} · récolte ×${cr.yield} · vaut ~${fmtP(val)}</small>
+        <small>${fmtT(t)} · récolte ×${cr.yield} · vaut ~${fmtP(val)}</small>
         <small class="good">≈ ${fmtP(profit / t * 60)}/min par champ</small></div>
         <span class="tag">${n > 1 ? n + " × " : ""}${cr.seed} €</span></button>`;
     }
@@ -836,7 +854,7 @@ function vSuperette() {
     <div><small>Réputation</small>${sbar(s.rep / 100, "rep")}<b>${Math.round(s.rep)}%</b></div>
     <div><small>Affluence</small><b>${(60 / shopInterval()).toFixed(1)} clients/min</b>${G.t < G.rushUntil ? '<span class="tag good">PROMO FLASH</span>' : ""}</div></div>
     <div class="log">${s.log.length ? s.log.map(x => `<div>${x}</div>`).join("") : '<div class="dim">Remplis un rayon pour accueillir tes premiers clients…</div>'}</div>
-    <p class="tip">💡 Prix bas = plus de ventes et meilleure réputation. Prix haut = plus de marge par article.</p>`;
+    <p class="tip">Prix bas = plus de ventes et meilleure réputation. Prix haut = plus de marge par article.</p>`;
   h += `<div class="sec">Rayons (${s.shelves.length})</div>`;
   s.shelves.forEach((sh, i) => {
     if (!sh.item) { h += `<button class="shelf empty" data-a="fill" data-i="${i}">＋ Mettre un produit en rayon</button>`; return; }
@@ -845,10 +863,10 @@ function vSuperette() {
       <div class="grow"><b>${it.n}</b><small>${sh.qty}/${shelfCap()} en rayon · ${have(sh.item)} en stock</small>${sbar(sh.qty / shelfCap(), sh.qty ? "" : "bad")}</div>
       <div class="price"><b>${fmtP(shelfPrice(sh))}</b><small>${Math.round(buyChance(sh.mk, s.rep) * 100)}% achat</small></div></div>
       <div class="seg">${MKS.map(m => `<button class="${sh.mk === m ? "on" : ""}" data-a="mk" data-i="${i}" data-m="${m}">${MK_LBL[m]}</button>`).join("")}</div>
-      <div class="row"><button class="btn sm" data-a="refill" data-i="${i}" ${have(sh.item) && sh.qty < shelfCap() ? "" : "disabled"}>📦 Réapprovisionner</button>
+      <div class="row"><button class="btn sm" data-a="refill" data-i="${i}" ${have(sh.item) && sh.qty < shelfCap() ? "" : "disabled"}>Réapprovisionner</button>
       <button class="btn sm ghost" data-a="unshelf" data-i="${i}">Retirer</button></div></div>`;
   });
-  h += `<button class="btn full" data-a="grossiste">🏬 Commander chez le grossiste</button>`;
+  h += `<button class="btn full" data-a="grossiste">Commander chez le grossiste</button>`;
   return h + empCard("superette");
 }
 
@@ -857,17 +875,17 @@ function vUsine() {
   let h = bizHead("usine");
   h += `<div class="sec">Chaînes de production (${u.machines.length}) <small>· vitesse ×${craftSpeed().toFixed(1)}</small></div>`;
   u.machines.forEach((m, i) => {
-    if (!m.r) h += `<button class="machine idle" data-a="pickrec" data-i="${i}">⚙️ Chaîne ${i + 1} à l'arrêt<small>Touche pour choisir une recette</small></button>`;
+    if (!m.r) h += `<button class="machine idle" data-a="pickrec" data-i="${i}">Chaîne ${i + 1} à l'arrêt<small>Touche pour choisir une recette</small></button>`;
     else if (m.ready) h += `<div class="machine ready"><span>${ITEMS[m.r].e}</span><div class="grow"><b>${ITEMS[m.r].n} prêt !</b><small>Récupère pour relancer la même recette</small></div>
-      <div class="acol"><button class="btn sm gold" data-a="colm" data-i="${i}">Récupérer</button><button class="btn sm ghost" data-a="mach" data-i="${i}">🔄 Changer</button></div></div>`;
+      <div class="acol"><button class="btn sm gold" data-a="colm" data-i="${i}">Récupérer</button><button class="btn sm ghost" data-a="mach" data-i="${i}">Changer</button></div></div>`;
     else h += `<div class="machine run"><span>${ITEMS[m.r].e}</span><div class="grow"><b>${ITEMS[m.r].n}</b><small>Chaîne ${i + 1}</small>${pbar(m.start, m.end)}</div>
-      <div class="acol"><button class="btn sm ghost" data-a="mach" data-i="${i}">🔄 Changer</button><button class="btn sm gem" data-a="skip" data-k="m" data-i="${i}">⚡ ${skipCost(m.end)}💎</button></div></div>`;
+      <div class="acol"><button class="btn sm ghost" data-a="mach" data-i="${i}">Changer</button><button class="btn sm gem" data-a="skip" data-k="m" data-i="${i}">Finir ${skipCost(m.end)}${GEM}</button></div></div>`;
   });
   h += `<div class="sec">Recettes</div><div class="list">`;
   for (const r in RECIPES) {
     const rc = RECIPES[r], lock = rc.lvl > G.lvl;
     h += `<div class="li ${lock ? "lock" : ""}"><span class="emo">${ITEMS[r].e}</span><div class="grow"><b>${ITEMS[r].n}</b>
-      <small>${lock ? "🔒 Niveau " + rc.lvl : ingr(rc.in) + " · " + fmtT(rc.time / craftSpeed())}</small></div><b class="dim">${fmtP(ref(r))}</b></div>`;
+      <small>${lock ? "Débloqué au niveau " + rc.lvl : ingr(rc.in) + " · " + fmtT(rc.time / craftSpeed())}</small></div><b class="dim">${fmtP(ref(r))}</b></div>`;
   }
   return h + "</div>" + empCard("usine");
 }
@@ -877,7 +895,7 @@ function recipeModal(i) {
     const back = m.r && !m.ready ? RECIPES[m.r].in : {};
     let h = m.r ? `<div class="card"><b>En ce moment : ${ITEMS[m.r].e} ${ITEMS[m.r].n}</b>
       <small>${m.ready ? "La production finie sera récupérée avant de changer." : "Si tu changes, les ingrédients en cours te sont rendus."}</small>
-      <button class="btn ghost full" data-a="stopm" data-i="${i}">⏹️ Arrêter cette chaîne</button></div><div class="sec">Nouvelle recette</div>` : "";
+      <button class="btn ghost full" data-a="stopm" data-i="${i}">Arrêter cette chaîne</button></div><div class="sec">Nouvelle recette</div>` : "";
     h += `<div class="list">`;
     for (const r in RECIPES) {
       const rc = RECIPES[r];
@@ -887,7 +905,7 @@ function recipeModal(i) {
       let inV = 0; for (const k in rc.in) inV += rc.in[k] * ref(k);
       h += `<button class="li btnli" data-a="startrec" data-i="${i}" data-r="${r}" ${ok && !cur ? "" : "disabled"}>
         <span class="emo">${ITEMS[r].e}</span><div class="grow"><b>${ITEMS[r].n}${cur ? ' <span class="tag good">en cours</span>' : ""}</b><small>${ingr(rc.in)}</small>
-        <small class="dim">⏱ ${fmtT(rc.time / craftSpeed())} · valeur ${fmtP(inV)} → <b class="good">${fmtP(ref(r))}</b></small></div></button>`;
+        <small class="dim">${fmtT(rc.time / craftSpeed())} · valeur ${fmtP(inV)} → <b class="good">${fmtP(ref(r))}</b></small></div></button>`;
     }
     return h + "</div>";
   };
@@ -899,19 +917,19 @@ function vResto() {
   const rt = rating();
   h += `<div class="card rstats"><div class="stars">${"★".repeat(Math.round(rt))}<span>${"★".repeat(5 - Math.round(rt))}</span></div>
     <small>Note ${rt.toFixed(1)}/5 · les clients satisfaits paient plus cher</small></div>
-    ${E("resto", "chef") ? "" : `<p class="tip">🕒 Sans chef cuisinier, la salle n'est ouverte que quand tu es là : les clients patientent pendant ton absence.</p>`}`;
+    ${E("resto", "chef") ? "" : `<p class="tip">Sans chef cuisinier, la salle n'est ouverte que quand tu es là : les clients patientent pendant ton absence.</p>`}`;
   h += `<div class="sec">Salle (${tableCount()} tables)</div><div class="tables">`;
   for (const o of r.orders) {
     const d = DISHES[o.d], ok = canMake(d.in);
     h += `<div class="card order"><div class="otop"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>${fmtP(dishPrice(o.d))}</small></div></div>
       <div class="ings">${ingr(d.in)}</div>${pbar(o.start, o.end, true, "pat")}
-      <button class="btn ${ok ? "gold" : ""} full" data-a="serve" data-o="${o.id}" ${ok ? "" : "disabled"}>${ok ? "🍽️ Servir" : "Ingrédients manquants"}</button></div>`;
+      <button class="btn ${ok ? "gold" : ""} full" data-a="serve" data-o="${o.id}" ${ok ? "" : "disabled"}>${ok ? "Servir" : "Ingrédients manquants"}</button></div>`;
   }
-  for (let i = r.orders.length; i < tableCount(); i++) h += `<div class="card order free">🪑<small>Table libre…</small></div>`;
+  for (let i = r.orders.length; i < tableCount(); i++) h += `<div class="card order free"><small>Table libre</small></div>`;
   h += `</div><div class="sec">Carte du restaurant</div><div class="list">`;
   for (const k in DISHES) {
     const d = DISHES[k], lock = d.lvl > G.lvl;
-    h += `<div class="li ${lock ? "lock" : ""}"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>${lock ? "🔒 Niveau " + d.lvl : ingr(d.in)}</small></div><b class="dim">${money(d.price)}</b></div>`;
+    h += `<div class="li ${lock ? "lock" : ""}"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>${lock ? "Débloqué au niveau " + d.lvl : ingr(d.in)}</small></div><b class="dim">${money(d.price)}</b></div>`;
   }
   return h + "</div>" + empCard("resto");
 }
@@ -922,11 +940,11 @@ function vTransport() {
   h += `<div class="sec">Flotte <small>· capacité ${truckCap()} articles/camion</small></div>`;
   t.trucks.forEach((tr, i) => {
     if (!tr.busy) h += `<div class="card truck"><span class="emo">🚚</span><div class="grow"><b>Camion ${i + 1}</b><small class="good">Disponible au dépôt</small></div></div>`;
-    else h += `<div class="card truck"><span class="emo moving">🚚</span><div class="grow"><b>→ ${tr.c.city}</b>${pbar(tr.start, tr.end)}</div><b class="good">+${money(tr.c.reward * mult())}</b>
-      <button class="btn sm gem" data-a="skip" data-k="t" data-i="${i}">⚡ ${skipCost(tr.end)}💎</button></div>`;
+    else h += `<div class="card truck"><span class="emo moving">🚚</span><div class="grow"><b>${tr.c.city}</b>${pbar(tr.start, tr.end)}</div><b class="good">+${money(tr.c.reward * mult())}</b>
+      <button class="btn sm gem" data-a="skip" data-k="t" data-i="${i}">Finir ${skipCost(tr.end)}${GEM}</button></div>`;
   });
   const free = t.trucks.some(x => !x.busy);
-  h += `<div class="sec">Contrats disponibles <button class="mini-btn" data-a="refreshc">🔄 2💎</button></div>`;
+  h += `<div class="sec">Contrats disponibles <button class="mini-btn" data-a="refreshc">2${GEM}</button></div>`;
   for (const c of t.contracts) {
     const ok = canMake(c.items);
     const qty = Object.values(c.items).reduce((a, b) => a + b, 0);
@@ -943,10 +961,10 @@ function vImmo() {
   let h = bizHead("immo");
   h += `<div class="card istats"><div><small>Indice immobilier</small><b>${Math.round(im.idx * 100)}</b> ${trend(im.hist)}</div>${spark(im.hist, 90, 30)}
     <div><small>Loyers</small><b class="good">+${money(rentPerDay() * mult())}/jour</b></div></div>
-    <p class="tip">💡 Achète quand l'indice est bas, revends quand il est haut. Les loyers tombent chaque matin.</p><div class="list">`;
+    <p class="tip">Achète quand l'indice est bas, revends quand il est haut. Les loyers tombent chaque matin.</p><div class="list">`;
   for (const p in PROPS) {
     const d = PROPS[p], n = im.props[p] || 0, lock = d.lvl > G.lvl;
-    if (lock) { h += `<div class="li lock"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>🔒 Niveau ${d.lvl}</small></div></div>`; continue; }
+    if (lock) { h += `<div class="li lock"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}</b><small>Niveau ${d.lvl}</small></div></div>`; continue; }
     h += `<div class="card prop"><span class="emo">${d.e}</span><div class="grow"><b>${d.n}${n ? ` <span class="tag">×${n}</span>` : ""}</b>
       <small>Prix ${money(propPrice(p))} · loyer ~${money(d.rent)}/j</small></div>
       <div class="acol"><button class="btn sm gold" data-a="buyprop" data-p="${p}">Acheter</button>
@@ -956,12 +974,12 @@ function vImmo() {
 }
 
 function vStock() {
-  let h = `<h2 class="ptitle">📦 Entrepôt</h2>`;
+  let h = `<h2 class="ptitle">Entrepôt</h2>`;
   const ids = Object.keys(ITEMS).filter(id => have(id) > 0);
   let val = 0; ids.forEach(id => val += have(id) * ref(id) * 0.7);
   h += `<div class="card"><small>Valeur de revente du stock</small><b>${money(val)}</b></div>
-    <p class="tip">💡 Vendre ici rapporte 70 % du cours. La supérette, l'usine, le resto et les contrats paient bien mieux !</p>`;
-  if (!ids.length) h += `<div class="empty-state">Ton entrepôt est vide.<br>Va récolter à la ferme 🚜</div>`;
+    <p class="tip">Vendre ici rapporte 70 % du cours. La supérette, l'usine, le resto et les contrats paient bien mieux !</p>`;
+  if (!ids.length) h += `<div class="empty-state">Ton entrepôt est vide.<br>Va récolter à la ferme pour le remplir.</div>`;
   h += `<div class="list">`;
   for (const id of ids) {
     const it = ITEMS[id], p = ref(id) * 0.7 * mult();
@@ -970,7 +988,7 @@ function vStock() {
       <button class="btn sm" data-a="sell" data-id="${id}" data-q="10">×10</button>
       <button class="btn sm gold" data-a="sell" data-id="${id}" data-q="all">Tout</button></div>`;
   }
-  h += `</div><div class="sec">📈 Cours du marché</div><div class="list">`;
+  h += `</div><div class="sec">Cours du marché</div><div class="list">`;
   for (const id in ITEMS) {
     if (!producible().includes(id) && !have(id)) continue;
     h += `<div class="li"><span class="emo">${ITEMS[id].e}</span><div class="grow"><b>${ITEMS[id].n}</b><small>${fmtP(ref(id))} ${trend(G.market[id].h)}</small></div>${spark(G.market[id].h)}</div>`;
@@ -979,17 +997,17 @@ function vStock() {
 }
 
 function vQuests() {
-  let h = `<h2 class="ptitle">🎯 Missions</h2><div class="list">`;
+  let h = `<h2 class="ptitle">Missions</h2><div class="list">`;
   G.quests.forEach((q, i) => {
     const p = qProg(q), done = p >= q.n;
     h += `<div class="card quest ${done ? "done" : ""}"><span class="emo">${QT[q.k].e}</span><div class="grow"><b>${QT[q.k].t(q.n)}</b>
-      ${sbar(p / q.n)}<small>${fmt(p)} / ${fmt(q.n)} · 🎁 ${money(q.money)} · ${q.xp} XP · ${q.gems}💎</small></div>
+      ${sbar(p / q.n)}<small>${fmt(p)} / ${fmt(q.n)} · gain ${money(q.money)} · ${q.xp} XP · ${q.gems}${GEM}</small></div>
       ${done ? `<button class="btn sm gold" data-a="claimq" data-i="${i}">Récupérer</button>` : `<button class="mini-btn" data-a="skipq" data-i="${i}" title="Changer">🔄</button>`}</div>`;
   });
-  h += `</div><p class="tip">🔄 Changer une mission coûte 1💎.</p>`;
+  h += `</div><p class="tip">Changer une mission coûte 1${GEM}.</p>`;
   const got = ACHS.filter(a => G.ach[a.id]).length;
-  h += `<div class="sec">🏆 Succès (${got}/${ACHS.length})</div><div class="list">`;
-  for (const a of ACHS) h += `<div class="li ${G.ach[a.id] ? "" : "lock"}"><span class="emo">${G.ach[a.id] ? "🏆" : "🔒"}</span><div class="grow"><b>${a.n}</b><small>${a.d}</small></div><b class="dim">${a.g}💎</b></div>`;
+  h += `<div class="sec">Succès (${got}/${ACHS.length})</div><div class="list">`;
+  for (const a of ACHS) h += `<div class="li ${G.ach[a.id] ? "" : "lock"}"><span class="emo">${G.ach[a.id] ? "🏆" : "🔒"}</span><div class="grow"><b>${a.n}</b><small>${a.d}</small></div><b class="dim">${a.g}${GEM}</b></div>`;
   return h + "</div>";
 }
 
@@ -1001,7 +1019,7 @@ const BOOSTS = {
 };
 const cashPack = () => Math.round(Math.max(400 * Math.pow(G.lvl, 1.6), incomeRate() * 15));
 function vShop() {
-  let h = `<h2 class="ptitle">💎 Boosts</h2><div class="card gemsbox"><span>💎</span><b>${G.gems}</b><small>Gagne des diamants avec les missions, les succès, les niveaux et le cadeau du jour.</small></div>`;
+  let h = `<h2 class="ptitle">Boosts</h2><div class="card gemsbox"><span>${GEM}</span><b>${G.gems}</b><small>Gagne des diamants avec les missions, les succès, les niveaux et le cadeau du jour.</small></div>`;
   if (canDaily()) h += `<button class="daily" data-a="daily"><span>🎁</span><div><b>Cadeau du jour !</b><small>Touche pour l'ouvrir</small></div></button>`;
   h += `<div class="list">`;
   for (const k in BOOSTS) {
@@ -1009,7 +1027,7 @@ function vShop() {
     if (k === "rush" && !G.biz.superette.own) continue;
     const extra = k === "cash" ? ` (+${money(cashPack())})` : "";
     h += `<div class="card boostc"><span class="emo">${b.e}</span><div class="grow"><b>${b.n}</b><small>${b.d}${extra}</small></div>
-      <button class="btn sm gem" data-a="boost" data-k="${k}" ${G.gems >= b.c ? "" : "disabled"}>${b.c} 💎</button></div>`;
+      <button class="btn sm gem" data-a="boost" data-k="${k}" ${G.gems >= b.c ? "" : "disabled"}>${b.c} ${GEM}</button></div>`;
   }
   return h + "</div>";
 }
@@ -1017,30 +1035,30 @@ function vShop() {
 function vMore() {
   const s = G.stats;
   const gainStars = prestigeGain();
-  let h = `<h2 class="ptitle">⚙️ Plus</h2>`;
-  h += `<div class="card savecard"><div class="shtop"><span class="emo">💾</span><div class="grow"><b>Sauvegarde</b>
-    <small>${lastSaveOk ? "✅ Automatique toutes les 5 s · dernière " + saveAgo() : "⚠️ Ce navigateur bloque la sauvegarde automatique : garde un fichier ou un code !"}</small></div></div>
-    <div class="row"><button class="btn sm gold" data-a="savenow">💾 Sauvegarder</button><button class="btn sm" data-a="savefile">📥 Fichier</button><button class="btn sm" data-a="loadfile">📂 Charger</button></div>
+  let h = `<h2 class="ptitle">Plus</h2>`;
+  h += `<div class="card savecard"><div class="shtop"><div class="grow"><b>Sauvegarde</b>
+    <small>${lastSaveOk ? "Automatique toutes les 5 s, dernière " + saveAgo() : "Ce navigateur bloque la sauvegarde automatique : garde un fichier ou un code !"}</small></div></div>
+    <div class="row"><button class="btn sm gold" data-a="savenow">Sauvegarder</button><button class="btn sm" data-a="savefile">Fichier</button><button class="btn sm" data-a="loadfile">Charger</button></div>
     <small class="dim">« Fichier » enregistre ta partie sur ton téléphone. Pratique pour changer d'appareil ou si tu vides ton navigateur.</small></div>`;
   h += `<div class="card prestige"><div class="center big">🌟</div><b>Prestige</b>
     <small>Revends tout ton empire pour gagner des <b>étoiles d'investisseur</b>. Chaque étoile = <b>+10 % de gains pour toujours</b>. Tu gardes tes diamants et tes succès.</small>
     <small>Étoiles actuelles : <b>${G.stars}</b> (+${G.stars * 10}% de gains)</small>
     ${G.runEarned >= PRESTIGE_MIN
-      ? `<button class="btn gold full" data-a="prestige">Revendre l'empire (+${gainStars} 🌟)</button>`
+      ? `<button class="btn gold full" data-a="prestige">Revendre l'empire (+${gainStars} étoiles)</button>`
       : `${sbar(G.runEarned / PRESTIGE_MIN)}<small class="dim">Gagne ${money(PRESTIGE_MIN)} dans cette partie pour débloquer (${money(G.runEarned)})</small>`}</div>`;
-  h += `<div class="sec">📊 Statistiques</div><div class="card statsg">
+  h += `<div class="sec">Statistiques</div><div class="card statsg">
     <div><small>Jour</small><b>${G.day}</b></div><div><small>Gains totaux</small><b>${money(s.earned)}</b></div>
     <div><small>Récoltes</small><b>${fmt(s.harvest)}</b></div><div><small>Produits animaux</small><b>${fmt(s.animal)}</b></div>
     <div><small>Ventes magasin</small><b>${fmt(s.sold)}</b></div><div><small>Fabrications</small><b>${fmt(s.craft)}</b></div>
     <div><small>Plats servis</small><b>${fmt(s.served)}</b></div><div><small>Livraisons</small><b>${fmt(s.contracts)}</b></div></div>`;
   h += `<div class="sec">Réglages</div><div class="list">
-    <button class="li btnli" data-a="set" data-k="sound"><span class="emo">${G.settings.sound ? "🔊" : "🔇"}</span><div class="grow"><b>Sons</b></div><span class="tag">${G.settings.sound ? "Oui" : "Non"}</span></button>
-    <button class="li btnli" data-a="set" data-k="vibe"><span class="emo">📳</span><div class="grow"><b>Vibrations</b></div><span class="tag">${G.settings.vibe ? "Oui" : "Non"}</span></button>
-    ${deferredInstall ? `<button class="li btnli" data-a="install"><span class="emo">📲</span><div class="grow"><b>Installer le jeu</b><small>Ajouter sur l'écran d'accueil</small></div></button>` : ""}
-    <button class="li btnli" data-a="update"><span class="emo">🔄</span><div class="grow"><b>Mettre à jour le jeu</b><small>Version actuelle : ${VERSION} · ta partie est gardée</small></div></button>
-    <button class="li btnli" data-a="help"><span class="emo">❓</span><div class="grow"><b>Comment jouer</b></div></button>
-    <button class="li btnli" data-a="export"><span class="emo">💾</span><div class="grow"><b>Code de sauvegarde</b><small>Copier / coller ta partie sous forme de texte</small></div></button>
-    <button class="li btnli danger" data-a="reset"><span class="emo">🗑️</span><div class="grow"><b>Recommencer à zéro</b></div></button></div>
+    <button class="li btnli" data-a="set" data-k="sound"><div class="grow"><b>Sons</b></div><span class="tag">${G.settings.sound ? "Oui" : "Non"}</span></button>
+    <button class="li btnli" data-a="set" data-k="vibe"><div class="grow"><b>Vibrations</b></div><span class="tag">${G.settings.vibe ? "Oui" : "Non"}</span></button>
+    ${deferredInstall ? `<button class="li btnli" data-a="install"><div class="grow"><b>Installer le jeu</b><small>Ajouter sur l'écran d'accueil</small></div></button>` : ""}
+    <button class="li btnli" data-a="update"><div class="grow"><b>Mettre à jour le jeu</b><small>Version actuelle : ${VERSION} · ta partie est gardée</small></div></button>
+    <button class="li btnli" data-a="help"><div class="grow"><b>Comment jouer</b></div></button>
+    <button class="li btnli" data-a="export"><div class="grow"><b>Code de sauvegarde</b><small>Copier / coller ta partie sous forme de texte</small></div></button>
+    <button class="li btnli danger" data-a="reset"><div class="grow"><b>Recommencer à zéro</b></div></button></div>
     <p class="center dim small">Empire Tycoon · ${VERSION}</p>`;
   return h;
 }
@@ -1048,14 +1066,14 @@ function vMore() {
 const HELP = `
   <p><b>Le but :</b> bâtir l'empire le plus riche possible en reliant tes 6 entreprises.</p>
   <ul class="ul">
-  <li>🚜 <b>Ferme</b> : plante, récolte, élève poules et vaches (il faut les nourrir).</li>
-  <li>🛒 <b>Supérette</b> : mets tes produits en rayon et choisis ta marge. Les clients achètent tout seuls.</li>
-  <li>🏭 <b>Usine</b> : transforme les récoltes en produits qui valent beaucoup plus.</li>
-  <li>🍽️ <b>Restaurant</b> : sers les clients avant que leur patience tombe à zéro.</li>
-  <li>🚚 <b>Logistique</b> : livre de grosses commandes pour un bonus énorme.</li>
-  <li>🏢 <b>Immobilier</b> : achète des biens, touche des loyers chaque matin.</li></ul>
-  <p>📈 Les prix du marché bougent chaque jour, des <b>événements</b> changent la donne. Les <b>employés</b> automatisent ton travail mais coûtent un salaire quotidien. Une journée dure 1 min 30.</p>
-  <p>🌙 Le jeu continue jusqu'à 3 h quand l'appli est fermée.</p>
+  <li><b>Ferme</b> : plante, récolte, élève poules et vaches (il faut les nourrir).</li>
+  <li><b>Supérette</b> : mets tes produits en rayon et choisis ta marge. Les clients achètent tout seuls.</li>
+  <li><b>Usine</b> : transforme les récoltes en produits qui valent beaucoup plus.</li>
+  <li><b>Restaurant</b> : sers les clients avant que leur patience tombe à zéro.</li>
+  <li><b>Logistique</b> : livre de grosses commandes pour un bonus énorme.</li>
+  <li><b>Immobilier</b> : achète des biens, touche des loyers chaque matin.</li></ul>
+  <p>Les prix du marché bougent chaque jour, des <b>événements</b> changent la donne. Les <b>employés</b> automatisent ton travail mais coûtent un salaire quotidien. Une journée dure 1 min 30.</p>
+  <p>Le jeu continue jusqu'à 3 h quand l'appli est fermée.</p>
   <button class="btn gold full" data-a="close">C'est parti !</button>`;
 
 // ---------- Actions ----------
@@ -1082,7 +1100,7 @@ const A = {
       immo: [`Loyers : +${5 * (n - 1)}%`],
     }[b];
     for (const e of EMPS[b]) if (e.lvl === n) lines.push(`${e.e} Nouvel employé : <b>${e.n}</b>`);
-    openModal(`⬆️ ${BIZ[b].n} niveau ${n}`, () => `<ul class="ul">${lines.map(x => `<li>${x}</li>`).join("")}</ul>
+    openModal(`${BIZ[b].n} niveau ${n}`, () => `<ul class="ul">${lines.map(x => `<li>${x}</li>`).join("")}</ul>
       <button class="btn gold full" data-a="upgok" data-b="${b}" ${G.money >= upCost(b) ? "" : "disabled"}>Améliorer pour ${money(upCost(b))}</button>`);
   },
   upgok: d => {
@@ -1090,7 +1108,7 @@ const A = {
     if (o.lvl >= MAX_LVL || !spend(upCost(d.b))) return;
     o.lvl++; sync(); closeModal();
     SFX.level(); vib(40);
-    toast(`⬆️ ${BIZ[d.b].n} passe au niveau ${o.lvl} !`, "good");
+    toast(`${BIZ[d.b].n} passe au niveau ${o.lvl} !`, "good");
   },
   emp: d => {
     const b = d.b, e = empDef(b, d.e);
@@ -1100,16 +1118,16 @@ const A = {
   },
 
   sel: d => {
-    if (CROPS[d.c].lvl > G.lvl) { toast(`🔒 Débloqué au niveau ${CROPS[d.c].lvl}`); return; }
+    if (CROPS[d.c].lvl > G.lvl) { toast(`Débloqué au niveau ${CROPS[d.c].lvl}`); return; }
     G.biz.ferme.sel = d.c;
   },
   plot: d => {
     const i = +d.i, p = G.biz.ferme.plots[i];
-    if (!p.c) { p.hold = G.t + 60; openModal(`🌱 Que planter sur le champ ${i + 1} ?`, cropPicker(i)); }
+    if (!p.c) { p.hold = G.t + 60; openModal(`Que planter sur le champ ${i + 1} ?`, cropPicker(i)); }
     else if (p.ready) { const c = p.c, n = harvest(i); floatTxt(`+${n} ${ITEMS[c].e}`, "good"); SFX.coin(); }
-    else openModal("🌱 En train de pousser", () => `<p class="center">Encore <b>${fmtT(p.end - G.t)}</b> avant la récolte.</p>
-      <button class="btn gem full" data-a="skip" data-k="p" data-i="${i}">⚡ Finir maintenant · ${skipCost(p.end)} 💎</button>
-      <button class="btn ghost full" data-a="uproot" data-i="${i}">🪓 Arracher pour planter autre chose (graine perdue)</button>`);
+    else openModal("En train de pousser", () => `<p class="center">Encore <b>${fmtT(p.end - G.t)}</b> avant la récolte.</p>
+      <button class="btn gem full" data-a="skip" data-k="p" data-i="${i}">Finir maintenant · ${skipCost(p.end)} ${GEM}</button>
+      <button class="btn ghost full" data-a="uproot" data-i="${i}">Arracher pour planter autre chose (graine perdue)</button>`);
   },
   plantc: d => {
     const f = G.biz.ferme, c = d.c;
@@ -1119,7 +1137,7 @@ const A = {
       let n = 0;
       f.plots.forEach((p, i) => { if (!p.c && plant(i, c, true)) n++; });
       if (n) floatTxt(`${ITEMS[c].e} ×${n}`, "good"); else spend(CROPS[c].seed);
-      if (n && f.plots.some(p => !p.c)) toast("💸 Plus assez d'argent pour planter tous les champs");
+      if (n && f.plots.some(p => !p.c)) toast("Plus assez d'argent pour planter tous les champs");
     } else {
       const p = f.plots[+d.i];
       if (p.c && p.c !== c) { p.c = null; p.ready = false; }
@@ -1132,10 +1150,10 @@ const A = {
     const p = G.biz.ferme.plots[+d.i];
     if (!p.c) return closeModal();
     p.c = null; p.ready = false; p.hold = G.t + 60;
-    closeModal(); openModal(`🌱 Que planter sur le champ ${+d.i + 1} ?`, cropPicker(+d.i));
+    closeModal(); openModal(`Que planter sur le champ ${+d.i + 1} ?`, cropPicker(+d.i));
   },
-  replant: () => { const f = G.biz.ferme; f.replant = f.replant === false; toast(f.replant ? "🔁 Les champs replantent leur culture" : "✋ Tu choisis la culture à chaque récolte"); },
-  plantall: () => openModal("🌱 Planter tous les champs vides", cropPicker("all")),
+  replant: () => { const f = G.biz.ferme; f.replant = f.replant === false; toast(f.replant ? "Les champs replantent leur culture" : "Tu choisis la culture à chaque récolte"); },
+  plantall: () => openModal("Planter tous les champs vides", cropPicker("all")),
   harvall: () => {
     const f = G.biz.ferme; let n = 0;
     f.plots.forEach((p, i) => { if (p.ready) n += harvest(i); });
@@ -1143,16 +1161,16 @@ const A = {
   },
   buyani: d => {
     const a = G.biz.ferme.animals[d.k];
-    if (a.n >= animalCap()) return toast("🏚️ Plus de place : améliore la ferme");
+    if (a.n >= animalCap()) return toast("Plus de place : améliore la ferme");
     if (!spend(animalCost(d.k))) return;
     a.n++; floatTxt(ANIMALS[d.k].e + " +1");
   },
   colani: d => { const n = collectAnimal(d.k); if (n) { floatTxt(`+${n} ${ITEMS[ANIMALS[d.k].out].e}`, "good"); SFX.coin(); } },
   fill: d => {
     const i = +d.i;
-    openModal("📦 Choisir un produit", () => {
+    openModal("Choisir un produit", () => {
       const ids = Object.keys(ITEMS).filter(id => have(id) > 0);
-      if (!ids.length) return `<p class="center">Ton stock est vide. Récolte à la ferme ou passe par le grossiste !</p><button class="btn full" data-a="grossiste">🏬 Grossiste</button>`;
+      if (!ids.length) return `<p class="center">Ton stock est vide. Récolte à la ferme ou passe par le grossiste !</p><button class="btn full" data-a="grossiste">Grossiste</button>`;
       return `<div class="list">${ids.map(id => `<button class="li btnli" data-a="fillwith" data-i="${i}" data-id="${id}"><span class="emo">${ITEMS[id].e}</span><div class="grow"><b>${ITEMS[id].n}</b><small>${have(id)} en stock · cours ${fmtP(ref(id))}</small></div></button>`).join("")}</div>`;
     });
   },
@@ -1161,10 +1179,10 @@ const A = {
     if (sh.item) { add(sh.item, sh.qty); }
     sh.item = d.id; sh.qty = 0; restock(sh); closeModal();
   },
-  refill: d => { const n = restock(G.biz.superette.shelves[+d.i]); if (n) floatTxt(`📦 +${n}`); },
+  refill: d => { const n = restock(G.biz.superette.shelves[+d.i]); if (n) floatTxt(`+${n} en rayon`); },
   unshelf: d => { const sh = G.biz.superette.shelves[+d.i]; if (sh.item) add(sh.item, sh.qty); sh.item = null; sh.qty = 0; },
   mk: d => { G.biz.superette.shelves[+d.i].mk = parseFloat(d.m); },
-  grossiste: () => openModal("🏬 Grossiste", () => {
+  grossiste: () => openModal("Grossiste", () => {
     const ids = Object.keys(ITEMS).filter(id => producible().includes(id) || Object.values(ANIMALS).some(a => a.out === id && a.lvl <= G.lvl));
     return `<p class="tip">Le grossiste vend 15 % au-dessus du cours. Pratique pour démarrer, mais produire toi-même rapporte bien plus !</p>
       <div class="list">${ids.map(id => { const p = ref(id) * 1.15; return `<div class="li"><span class="emo">${ITEMS[id].e}</span><div class="grow"><b>${ITEMS[id].n}</b><small>${fmtP(p)} / u · stock ${have(id)}</small></div>
@@ -1174,19 +1192,19 @@ const A = {
   gbuy: d => {
     const q = +d.q, cost = Math.round(ref(d.id) * 1.15 * q);
     if (!spend(cost)) return;
-    add(d.id, q); toast(`🏬 +${q} ${ITEMS[d.id].e} achetés`); refreshModal();
+    add(d.id, q); toast(`+${q} ${ITEMS[d.id].e} achetés`); refreshModal();
   },
-  pickrec: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`⚙️ Chaîne ${+d.i + 1} : que produire ?`, recipeModal(+d.i)); },
-  mach: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`🔄 Changer la chaîne ${+d.i + 1}`, recipeModal(+d.i)); },
+  pickrec: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`Chaîne ${+d.i + 1} : que produire ?`, recipeModal(+d.i)); },
+  mach: d => { G.biz.usine.machines[+d.i].hold = G.t + 60; openModal(`Changer la chaîne ${+d.i + 1}`, recipeModal(+d.i)); },
   startrec: d => {
     const i = +d.i, m = G.biz.usine.machines[i];
     if (m.r) stopMachine(i);
-    if (startRecipe(i, d.r)) { m.hold = 0; closeModal(); floatTxt(ITEMS[d.r].e, "good"); toast(`⚙️ Chaîne ${i + 1} : ${ITEMS[d.r].n}`); }
+    if (startRecipe(i, d.r)) { m.hold = 0; closeModal(); floatTxt(ITEMS[d.r].e, "good"); toast(`Chaîne ${i + 1} : ${ITEMS[d.r].n}`); }
   },
   stopm: d => {
     const i = +d.i, m = G.biz.usine.machines[i];
     stopMachine(i); m.last = null; m.hold = 0;
-    closeModal(); toast(`⏹️ Chaîne ${i + 1} arrêtée, ingrédients rendus`);
+    closeModal(); toast(`Chaîne ${i + 1} arrêtée, ingrédients rendus`);
   },
   colm: d => { const r = collectMachine(+d.i); if (r) { floatTxt(`+1 ${ITEMS[r].e}`, "good"); SFX.coin(); } },
   skip: d => {
@@ -1200,7 +1218,7 @@ const A = {
   serve: d => { if (serve(+d.o)) { SFX.coin(); vib(25); } },
   accept: d => { acceptContract(G.biz.transport.contracts.find(x => x.id === d.c)); },
 
-  refreshc: () => { if (!spendGems(2)) return; G.biz.transport.contracts = []; sync(); toast("🔄 Nouveaux contrats !"); },
+  refreshc: () => { if (!spendGems(2)) return; G.biz.transport.contracts = []; sync(); toast("Nouveaux contrats !"); },
   buyprop: d => { if (!spend(Math.round(propPrice(d.p)))) return; G.biz.immo.props[d.p]++; SFX.coin(); toast(`${PROPS[d.p].e} ${PROPS[d.p].n} acheté !`, "good"); },
   sellprop: d => {
     const im = G.biz.immo; if (!im.props[d.p]) return;
@@ -1216,7 +1234,7 @@ const A = {
     if (!q || qProg(q) < q.n) return;
     gain(q.money, { float: true }); G.gems += q.gems; addXP(q.xp);
     G.quests.splice(+d.i, 1); G.quests.push(genQuest());
-    SFX.coin(); vib(40); toast(`🎯 Mission accomplie ! +${q.gems}💎`, "good");
+    SFX.coin(); vib(40); toast(`Mission accomplie ! +${q.gems}${GEM}`, "good");
   },
   skipq: d => { if (!spendGems(1)) return; G.quests.splice(+d.i, 1); G.quests.push(genQuest()); },
   daily: () => {
@@ -1227,9 +1245,9 @@ const A = {
     const r = dailyReward(G.daily.streak);
     gain(r.money, { raw: true }); G.gems += r.gems;
     SFX.level(); vib(60);
-    openModal("🎁 Cadeau du jour", () => `<div class="center big">🎁</div>
+    openModal("Cadeau du jour", () => `<div class="center big">🎁</div>
       <p class="center">Jour <b>${G.daily.streak}</b> de ta série !</p>
-      <p class="center big2">+${money(r.money)} · +${r.gems} 💎</p>
+      <p class="center big2">+${money(r.money)} · +${r.gems} ${GEM}</p>
       <p class="center dim">Reviens demain pour un cadeau encore plus gros (gros bonus tous les 7 jours).</p>
       <button class="btn gold full" data-a="close">Merci !</button>`);
   },
@@ -1242,28 +1260,28 @@ const A = {
     if (d.k === "cash") gain(cashPack(), { raw: true, float: true });
     SFX.level(); toast(`${b.e} ${b.n} activé !`, "good");
   },
-  prestige: () => openModal("🌟 Revendre l'empire ?", () => `<p>Tu vas repartir de zéro avec <b>+${prestigeGain()} étoile(s)</b>.</p>
-      <p>Tu gardes : 💎 diamants, 🏆 succès, 🌟 étoiles, statistiques.</p>
+  prestige: () => openModal("Revendre l'empire ?", () => `<p>Tu vas repartir de zéro avec <b>+${prestigeGain()} étoile(s)</b>.</p>
+      <p>Tu gardes tes diamants, tes succès, tes étoiles et tes statistiques.</p>
       <button class="btn gold full" data-a="prestigeok">Confirmer le prestige</button><button class="btn ghost full" data-a="close">Annuler</button>`),
   prestigeok: () => {
     const gainS = prestigeGain();
     const keep = G; G = newState(keep); G.stars += gainS; G.prestiges++;
     sync(); closeModal(); scr = "home"; SFX.level();
-    toast(`🌟 Nouveau départ avec ${G.stars} étoile(s) : +${G.stars * 10}% de gains !`, "good");
+    toast(`Nouveau départ avec ${G.stars} étoile(s) : +${G.stars * 10}% de gains !`, "good");
   },
   set: d => { G.settings[d.k] = !G.settings[d.k]; },
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; dirty = true; },
   update: async () => {
     save();
-    toast("🔄 Recherche de la dernière version…");
+    toast("Recherche de la dernière version…");
     try {
       if (swReg) await swReg.update();
       if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
     } catch (e) {}
     setTimeout(() => location.reload(), 600);
   },
-  help: () => openModal("❓ Comment jouer", () => HELP),
-  savenow: () => { if (save()) { toast("💾 Partie sauvegardée !", "good"); SFX.coin(); } else toast("⚠️ Sauvegarde impossible ici : utilise « Fichier »", "bad"); },
+  help: () => openModal("Comment jouer", () => HELP),
+  savenow: () => { if (save()) { toast("Partie sauvegardée !", "good"); SFX.coin(); } else toast("Sauvegarde impossible ici : utilise « Fichier »", "bad"); },
   savefile: () => {
     save();
     const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1272,7 +1290,7 @@ const A = {
     a.href = URL.createObjectURL(blob); a.download = `empire-tycoon-${stamp}-niv${G.lvl}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast("📥 Fichier de sauvegarde créé (dossier Téléchargements)", "good");
+    toast("Fichier de sauvegarde créé (dossier Téléchargements)", "good");
   },
   loadfile: () => {
     const inp = document.createElement("input");
@@ -1284,36 +1302,36 @@ const A = {
         try {
           const txt = String(rd.result).trim();
           const d = txt.startsWith("{") ? JSON.parse(txt) : JSON.parse(decodeURIComponent(escape(atob(txt))));
-          openModal("📂 Charger cette partie ?", () => `<p class="center">Niveau <b>${d.lvl}</b> · <b>${money(d.money)}</b> · jour ${d.day}</p>
+          openModal("Charger cette partie ?", () => `<p class="center">Niveau <b>${d.lvl}</b> · <b>${money(d.money)}</b> · jour ${d.day}</p>
             <p class="center dim">Ta partie actuelle (niveau ${G.lvl}) sera remplacée.</p>
             <button class="btn gold full" data-a="loadok">Charger</button><button class="btn ghost full" data-a="close">Annuler</button>`);
           pendingLoad = d;
-        } catch (e) { toast("❌ Ce fichier n'est pas une sauvegarde Empire Tycoon", "bad"); SFX.err(); }
+        } catch (e) { toast("Ce fichier n'est pas une sauvegarde Empire Tycoon", "bad"); SFX.err(); }
       };
       rd.readAsText(f);
     };
     inp.click();
   },
-  loadok: () => { try { importData(pendingLoad); } catch (e) { toast("❌ Sauvegarde invalide", "bad"); } pendingLoad = null; },
-  export: () => openModal("💾 Code de sauvegarde", () => {
+  loadok: () => { try { importData(pendingLoad); } catch (e) { toast("Sauvegarde invalide", "bad"); } pendingLoad = null; },
+  export: () => openModal("Code de sauvegarde", () => {
     save();
     const code = saveCode();
     return `<p class="small">Copie ce code et garde-le. Sur un autre appareil, colle-le puis touche « Importer ».</p>
       <textarea id="saveCode" rows="5">${code}</textarea>
-      <div class="row"><button class="btn" data-a="copysave">📋 Copier</button><button class="btn gold" data-a="importsave">📥 Importer</button></div>`;
+      <div class="row"><button class="btn" data-a="copysave">Copier</button><button class="btn gold" data-a="importsave">Importer</button></div>`;
   }),
   copysave: () => {
     const t = $("#saveCode"); t.select();
-    try { navigator.clipboard.writeText(t.value).then(() => toast("📋 Code copié !"), () => toast("Code sélectionné : copie-le avec un appui long")); }
+    try { navigator.clipboard.writeText(t.value).then(() => toast("Code copié !"), () => toast("Code sélectionné : copie-le avec un appui long")); }
     catch (e) { toast("Code sélectionné : copie-le avec un appui long"); }
   },
   importsave: () => {
     try {
       const txt = $("#saveCode").value.trim();
       importData(txt.startsWith("{") ? JSON.parse(txt) : JSON.parse(decodeURIComponent(escape(atob(txt)))));
-    } catch (e) { toast("❌ Code invalide", "bad"); }
+    } catch (e) { toast("Code invalide", "bad"); }
   },
-  reset: () => openModal("🗑️ Tout recommencer ?", () => `<p>Ta partie sera <b>définitivement</b> effacée (y compris diamants et étoiles).</p>
+  reset: () => openModal("Tout recommencer ?", () => `<p>Ta partie sera <b>définitivement</b> effacée (y compris diamants et étoiles).</p>
       <button class="btn danger full" data-a="resetok">Oui, tout effacer</button><button class="btn ghost full" data-a="close">Annuler</button>`),
   resetok: () => { localStorage.removeItem(SAVE_KEY); G = newState(); sync(); closeModal(); scr = "home"; A.help(); G.welcomed = true; },
 };
@@ -1339,16 +1357,20 @@ function render(force) {
   $("#sBadge").style.display = canDaily() ? "" : "none";
   updTimers();
 }
+let shownMoney = null;
 function hud() {
-  $("#hMoney").textContent = money(G.money);
+  if (shownMoney === null || G.money < shownMoney || OFF) shownMoney = G.money;
+  else shownMoney += (G.money - shownMoney) * 0.3 + 0.5;
+  if (shownMoney > G.money) shownMoney = G.money;
+  $("#hMoney").textContent = money(shownMoney);
   $("#hGems").textContent = G.gems;
   $("#hLvl").textContent = G.lvl;
   $("#hXp").style.width = (G.xp / xpNeed(G.lvl) * 100) + "%";
   const dp = (G.t % DAY) / DAY;
   const hh = Math.floor(6 + dp * 16), mm = Math.floor((6 + dp * 16) % 1 * 60);
   $("#hDay").textContent = `Jour ${G.day} · ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  $("#hSun").textContent = dp < 0.75 ? "☀️" : "🌙";
-  $("#hEv").textContent = G.events.map(e => EVENTS[e.id].e).join(" ") + (G.t < G.boostUntil ? " ⚡" : "") + (G.stars ? ` 🌟${G.stars}` : "");
+  document.body.classList.toggle("night", dp >= 0.75);
+  $("#hEv").textContent = G.events.map(e => EVENTS[e.id].e).join(" ") + (G.t < G.boostUntil ? "  ×2" : "") + (G.stars ? `  ★${G.stars}` : "");
 }
 function updTimers() {
   document.querySelectorAll("[data-end]").forEach(el => {
@@ -1358,6 +1380,12 @@ function updTimers() {
     const bar = el.firstElementChild; if (bar) bar.style.width = p * 100 + "%";
     if (el.dataset.rev) el.classList.toggle("hurry", p < 0.3);
     const tx = el.querySelector("span"); if (tx) tx.textContent = fmtT(e - G.t);
+  });
+  document.querySelectorAll("[data-ge]").forEach(el => {
+    const p = clamp((G.t - +el.dataset.gs) / (+el.dataset.ge - +el.dataset.gs || 1), 0, 1);
+    const ch = p < 0.35 ? "🌱" : el.dataset.c;
+    if (el.textContent !== ch) el.textContent = ch;
+    el.style.transform = `scale(${p < 0.35 ? 0.55 + p : 0.55 + p * 0.45})`;
   });
   document.querySelectorAll("[data-anim]").forEach(el => {
     const k = el.dataset.anim, a = G.biz.ferme.animals[k];
@@ -1406,7 +1434,7 @@ function frame() {
   if (now - lastSave > 5000) { lastSave = now; save(); }
 }
 function offlineReport(r) {
-  openModal("🌙 Bon retour, patron !", () => `<p class="center">Tu étais absent <b>${fmtT(r.sec)}</b>.</p>
+  openModal("Bon retour, patron !", () => `<p class="center">Tu étais absent <b>${fmtT(r.sec)}</b>.</p>
     <p class="center big2 ${r.earned >= 0 ? "good" : "bad"}">${r.earned >= 0 ? "+" : ""}${money(r.earned)}</p>
     <p class="center dim">Tes cultures ont poussé, tes clients ont acheté et tes loyers sont tombés.</p>
     <button class="btn gold full" data-a="close">Au travail !</button>`);
@@ -1421,7 +1449,7 @@ function init() {
   }
   lastReal = Date.now();
   hud(); render(true);
-  if (!G.welcomed) { G.welcomed = true; openModal("👋 Bienvenue dans Empire Tycoon !", () => HELP); }
+  if (!G.welcomed) { G.welcomed = true; openModal("Bienvenue dans Empire Tycoon !", () => HELP); }
   setInterval(frame, 100);
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
   window.addEventListener("pagehide", save);
